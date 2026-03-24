@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { Bank, PaystubData, CalculationResult } from '../types';
+import { Bank, PaystubData, CalculationResult, Signatory } from '../types';
 import { formatCurrency } from './utils';
 
 /**
@@ -74,7 +74,8 @@ function numberToWords(n: number): string {
 export function generateLetterPDF(
   bank: Bank,
   data: PaystubData,
-  result: CalculationResult
+  result: CalculationResult,
+  signatory: Signatory
 ) {
   const doc = new jsPDF();
   const date = new Date();
@@ -169,19 +170,21 @@ export function generateLetterPDF(
 
   doc.text('No ensejo, renovo os votos de estima e consideração.', 20, 210);
 
+  doc.setTextColor(0);
   doc.text('_________________________________________________', 105, 245, { align: 'center' });
   doc.setFont('helvetica', 'bold');
-  doc.text('Mikaely da Silva Vieira', 105, 251, { align: 'center' });
+  doc.text(signatory.name, 105, 251, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  doc.text('Matrícula 210189', 105, 257, { align: 'center' });
+  doc.text(`Matrícula ${signatory.registration}`, 105, 257, { align: 'center' });
   doc.setFont('helvetica', 'bold');
-  doc.text('ASSESSORA DE APOIO ADMINISTRATIVO', 105, 263, { align: 'center' });
+  doc.text(signatory.position, 105, 263, { align: 'center' });
 
   drawFooter(doc);
 
   // --- PAGE 2: DECLARAÇÃO ---
   doc.addPage();
   drawHeader(doc);
+  doc.setTextColor(0); // Reset to black after header
 
   // LGPD Box
   doc.setDrawColor(0);
@@ -263,18 +266,19 @@ export function generateLetterPDF(
   y += 25;
 
   // Signatures
+  doc.setTextColor(0);
   doc.line(20, y, 90, y);
   doc.line(120, y, 190, y);
   y += 5;
   doc.setFont('helvetica', 'bold');
   doc.text(`${bondName.toUpperCase()} PROPONENTE`, 55, y, { align: 'center' });
-  doc.text('Mikaely da Silva Vieira', 155, y, { align: 'center' });
+  doc.text(signatory.name, 155, y, { align: 'center' });
   y += 5;
   doc.setFont('helvetica', 'normal');
-  doc.text('Matrícula 210189', 155, y, { align: 'center' });
+  doc.text(`Matrícula ${signatory.registration}`, 155, y, { align: 'center' });
   y += 5;
   doc.setFont('helvetica', 'bold');
-  doc.text('ASSESSORA DE APOIO ADMINISTRATIVO', 155, y, { align: 'center' });
+  doc.text(signatory.position, 155, y, { align: 'center' });
 
   drawFooter(doc);
 

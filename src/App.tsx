@@ -13,7 +13,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bank, PaystubData, ConsignedLoan, CalculationResult } from './types';
+import { Bank, PaystubData, ConsignedLoan, CalculationResult, Signatory } from './types';
 import { calculateMargin } from './lib/calculations';
 import { generateLetterPDF } from './lib/pdfGenerator';
 import { cn, formatCurrency, parseCurrencyInput, formatCurrencyInput } from './lib/utils';
@@ -43,6 +43,19 @@ export default function App() {
     pension: 0,
     consignedLoans: [],
   });
+
+  const [signatory, setSignatory] = useState<Signatory>(() => {
+    const saved = localStorage.getItem('signatory');
+    return saved ? JSON.parse(saved) : {
+      name: 'Mikaely da Silva Vieira',
+      registration: '210189',
+      position: 'ASSESSORA DE APOIO ADMINISTRATIVO'
+    };
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem('signatory', JSON.stringify(signatory));
+  }, [signatory]);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [aiStatus, setAiStatus] = useState<string | null>(null);
@@ -746,6 +759,41 @@ export default function App() {
                   </div>
                 </div>
 
+                <div className="border-t border-[#141414]/5 pt-8 space-y-6">
+                  <div className="text-left">
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-[#141414]/40 mb-4">Responsável pela Assinatura</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[#141414]/40 uppercase">Nome</label>
+                        <input 
+                          type="text" 
+                          value={signatory.name}
+                          onChange={(e) => setSignatory({ ...signatory, name: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-[#141414]/10 text-sm font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[#141414]/40 uppercase">Matrícula</label>
+                        <input 
+                          type="text" 
+                          value={signatory.registration}
+                          onChange={(e) => setSignatory({ ...signatory, registration: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-[#141414]/10 text-sm font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-[#141414]/40 uppercase">Cargo</label>
+                        <input 
+                          type="text" 
+                          value={signatory.position}
+                          onChange={(e) => setSignatory({ ...signatory, position: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-[#141414]/10 text-sm font-semibold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <button
                     onClick={prevStep}
@@ -755,7 +803,7 @@ export default function App() {
                     Voltar
                   </button>
                   <button
-                    onClick={() => generateLetterPDF(selectedBank, paystubData, calculation)}
+                    onClick={() => generateLetterPDF(selectedBank, paystubData, calculation, signatory)}
                     className="flex items-center justify-center gap-3 py-5 rounded-2xl bg-[#141414] text-white font-bold hover:scale-[1.02] transition-transform shadow-xl"
                   >
                     <Download size={24} />

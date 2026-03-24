@@ -26,3 +26,9 @@ export interface CalculationResult {
   renewalMargin: number;
   isViable: boolean;
 }
+
+export interface Signatory {
+  name: string;
+  registration: string;
+  position: string;
+}
