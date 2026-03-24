@@ -1,0 +1,5 @@
+{
+  "name": "Gerador de Carta Margem",
+  "description": "Aplicação para cálculo de margem consignável e geração de carta margem bancária para servidores públicos.",
+  "requestFramePermissions": []
+}
