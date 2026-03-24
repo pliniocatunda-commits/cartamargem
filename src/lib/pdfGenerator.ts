@@ -91,9 +91,8 @@ export function generateLetterPDF(
   const drawHeader = (doc: jsPDF) => {
     // Try to load the official logo if the user uploaded it to the public folder
     try {
-      // We use a try-catch because if the image doesn't exist, it would throw an error
-      // The user should upload the file as 'public/logo-ipme.png'
-      doc.addImage('/logo-ipme.png', 'PNG', 20, 10, 40, 20);
+      // Centering the logo: (210 - 60) / 2 = 75
+      doc.addImage('/logo-ipme.png', 'PNG', 75, 10, 60, 30);
     } catch (e) {
       // Fallback to improved simulation if image is not found
       // Colorful figures (circles/heads)
@@ -118,15 +117,15 @@ export function generateLetterPDF(
       
       doc.setFont('times', 'bold');
       doc.setFontSize(26);
-      doc.setTextColor(0, 40, 100); // Dark Blue for fallback
-      doc.text('IPME', 135, 25, { align: 'center' });
+      doc.setTextColor(0, 40, 100); 
+      doc.text('IPME', 105, 28, { align: 'center' });
+
+      doc.setFontSize(9);
+      doc.setTextColor(0, 40, 100);
+      doc.setFont('times', 'italic');
+      doc.text('INSTITUTO DE PREVIDÊNCIA', 105, 33, { align: 'center' });
+      doc.text('DO MUNICÍPIO DE EUSÉBIO', 105, 37, { align: 'center' });
     }
-    
-    doc.setFontSize(9);
-    doc.setTextColor(0, 40, 100); // Dark Blue for fallback
-    doc.setFont('times', 'italic');
-    doc.text('INSTITUTO DE PREVIDÊNCIA', 105, 33, { align: 'center' });
-    doc.text('DO MUNICÍPIO DE EUSÉBIO', 105, 37, { align: 'center' });
   };
 
   const drawFooter = (doc: jsPDF) => {
