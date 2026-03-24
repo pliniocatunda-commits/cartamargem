@@ -108,7 +108,7 @@ export async function parsePaystubWithAI(file: File): Promise<Partial<PaystubDat
               }
             },
             {
-              text: `Extraia os dados deste contracheque brasileiro (holerite). Procure pelo nome do servidor, matrícula, valor bruto (total de vantagens), IRRF, Previdência e empréstimos consignados. 
+              text: `Extraia os dados deste contracheque brasileiro (holerite). Procure pelo nome do servidor, matrícula, CPF (pode estar perto do cargo ou nas observações), data de admissão, vínculo (05 para pensionista, 06 para aposentado), valor bruto (total de vantagens), IRRF, Previdência e empréstimos consignados. 
               Para os empréstimos, identifique o banco pelo nome ou pelo código que aparece na coluna de código/rubrica:
               - Código 19: BB
               - Código 28: CEF
@@ -128,6 +128,9 @@ export async function parsePaystubWithAI(file: File): Promise<Partial<PaystubDat
           properties: {
             serverName: { type: Type.STRING },
             registration: { type: Type.STRING },
+            cpf: { type: Type.STRING },
+            admissionDate: { type: Type.STRING },
+            bondType: { type: Type.STRING, enum: ["05", "06"] },
             grossValue: { type: Type.NUMBER },
             irrf: { type: Type.NUMBER },
             pension: { type: Type.NUMBER },
@@ -153,6 +156,9 @@ export async function parsePaystubWithAI(file: File): Promise<Partial<PaystubDat
     return {
       serverName: result.serverName,
       registration: result.registration,
+      cpf: result.cpf,
+      admissionDate: result.admissionDate,
+      bondType: result.bondType,
       grossValue: result.grossValue,
       irrf: result.irrf,
       pension: result.pension,
@@ -237,45 +243,110 @@ export async function parsePaystubPDF(file: File): Promise<Partial<PaystubData>>
     }
 
     // Enhanced Regex Patterns for Brazilian Paystubs (Servidor Público)
-    // 1. Registration and Server Name
+    // 1. Registration, Server Name, CPF, Admission Date, Bond Type
     let serverName: string | undefined;
     let registration: string | undefined;
+    let cpf: string | undefined;
+    let admissionDate: string | undefined;
+    let bondType: '05' | '06' | undefined;
 
-    // Look for registration (matricula) and name
-    for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    // Look for registration (matricula), name, CPF, etc.
+    for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const columns = row.split(';');
+      const upperRow = row.toUpperCase();
       
       // Look for a registration pattern (usually a number with 4-10 digits)
       // and then a name in the same row or next row
       for (let j = 0; j < columns.length; j++) {
         const col = columns[j].trim();
-        // Match registration: 4 to 10 digits, possibly with a dash or leading zeros
-        const regMatch = col.match(/^(\d{4,10}(?:-\d)?)$/);
+        const upperCol = col.toUpperCase();
         
-        if (regMatch) {
-          registration = regMatch[1];
-          
-          // Name is usually right after the registration in the same row
+        // Match CPF: xxx.xxx.xxx-xx or xxxxxxxxxxx or C.P.F.: xxx.xxx.xxx-xx
+        // Also look for CPF label and then the value in the next column or row
+        if (!cpf) {
+          const cpfMatch = col.match(/(?:C\.P\.F\.:\s*|CPF:\s*)?(\d{3}\.\d{3}\.\d{3}-\d{2})|(\d{11})/i);
+          if (cpfMatch) {
+            cpf = cpfMatch[1] || cpfMatch[2];
+          } else if (upperCol.includes('CPF') || upperCol.includes('C.P.F.')) {
+            // Check next column
+            if (j + 1 < columns.length) {
+              const nextColMatch = columns[j + 1].match(/(\d{3}\.\d{3}\.\d{3}-\d{2})|(\d{11})/);
+              if (nextColMatch) cpf = nextColMatch[0];
+            }
+            // Check next row if not found
+            if (!cpf && i + 1 < rows.length) {
+              const nextRowMatch = rows[i + 1].match(/(\d{3}\.\d{3}\.\d{3}-\d{2})|(\d{11})/);
+              if (nextRowMatch) cpf = nextRowMatch[0];
+            }
+          }
+        }
+
+        // Match Admission Date: dd/mm/yyyy
+        if (!admissionDate) {
+          const dateMatch = col.match(/(\d{2}\/\d{2}\/\d{4})/);
+          if (dateMatch) {
+            admissionDate = dateMatch[1];
+          } else if (upperCol.includes('ADMISSÃO') || upperCol.includes('ADMISSAO')) {
+            if (j + 1 < columns.length) {
+              const nextColMatch = columns[j + 1].match(/(\d{2}\/\d{2}\/\d{4})/);
+              if (nextColMatch) admissionDate = nextColMatch[0];
+            }
+            if (!admissionDate && i + 1 < rows.length) {
+              const nextRowMatch = rows[i + 1].match(/(\d{2}\/\d{2}\/\d{4})/);
+              if (nextRowMatch) admissionDate = nextRowMatch[0];
+            }
+          }
+        }
+
+        // Match Bond Type: 05 or 06
+        if (!bondType) {
+          if (col === '05' || col === '06') {
+            bondType = col as '05' | '06';
+          } else if (upperCol.includes('APOSENTADO')) {
+            bondType = '06';
+          } else if (upperCol.includes('PENSIONISTA')) {
+            bondType = '05';
+          }
+        }
+
+        // Match registration: 4 to 10 digits, possibly with a dash or leading zeros
+        if (!registration) {
+          const regMatch = col.match(/^(\d{4,10}(?:-\d)?)$/);
+          if (regMatch) {
+            registration = regMatch[1];
+          }
+        }
+
+        // Match Server Name (if we have registration, look nearby)
+        if (!serverName && registration && i < 20) {
           if (j + 1 < columns.length) {
             const nextCol = columns[j + 1].trim();
             if (nextCol.length > 5 && /^[A-ZÀ-Ú\s]+$/.test(nextCol.toUpperCase())) {
               serverName = nextCol;
-              break;
-            }
-          }
-          
-          // Or in the next column if there's a gap
-          if (!serverName && j + 2 < columns.length) {
-            const nextCol = columns[j + 2].trim();
-            if (nextCol.length > 5 && /^[A-ZÀ-Ú\s]+$/.test(nextCol.toUpperCase())) {
-              serverName = nextCol;
-              break;
             }
           }
         }
       }
-      if (serverName) break;
+    }
+
+    // Special check for CPF below "Cargo" as requested by user
+    if (!cpf) {
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].toUpperCase().includes('CARGO')) {
+          // Check next 3 rows for a CPF pattern
+          for (let k = 1; k <= 3; k++) {
+            if (i + k < rows.length) {
+              const match = rows[i + k].match(/(\d{3}\.\d{3}\.\d{3}-\d{2})|(\d{11})/);
+              if (match) {
+                cpf = match[0];
+                break;
+              }
+            }
+          }
+        }
+        if (cpf) break;
+      }
     }
 
     // Fallback to 5th line if not found via registration reference
@@ -433,6 +504,9 @@ export async function parsePaystubPDF(file: File): Promise<Partial<PaystubData>>
     return {
       serverName,
       registration,
+      cpf,
+      admissionDate,
+      bondType,
       grossValue,
       irrf,
       pension,

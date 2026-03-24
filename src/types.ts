@@ -9,6 +9,9 @@ export interface ConsignedLoan {
 export interface PaystubData {
   serverName: string;
   registration: string;
+  cpf?: string;
+  admissionDate?: string;
+  bondType?: '05' | '06';
   grossValue: number;
   irrf: number;
   pension: number;

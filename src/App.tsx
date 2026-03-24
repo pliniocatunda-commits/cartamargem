@@ -35,6 +35,9 @@ export default function App() {
   const [paystubData, setPaystubData] = useState<PaystubData>({
     serverName: '',
     registration: '',
+    cpf: '',
+    admissionDate: '',
+    bondType: '06',
     grossValue: 0,
     irrf: 0,
     pension: 0,
@@ -93,6 +96,9 @@ export default function App() {
       setPaystubData({
         serverName: extracted.serverName || 'SERVIDOR NÃO IDENTIFICADO',
         registration: extracted.registration || '',
+        cpf: extracted.cpf || '',
+        admissionDate: extracted.admissionDate || '',
+        bondType: extracted.bondType || '06',
         grossValue: extracted.grossValue || 0,
         irrf: extracted.irrf || 0,
         pension: extracted.pension || 0,
@@ -179,7 +185,9 @@ export default function App() {
             </div>
             <div>
               <h1 className="font-bold text-lg tracking-tight">MargemFacil</h1>
-              <p className="text-xs text-[#141414]/50 uppercase tracking-widest font-semibold">Sistema de Carta Margem</p>
+              <p className="text-[10px] text-blue-600 uppercase tracking-widest font-bold leading-tight">
+                IPME - Instituto de Previdência do Município de Eusébio
+              </p>
             </div>
           </div>
           
@@ -347,7 +355,7 @@ export default function App() {
                 <div className="lg:col-span-2 space-y-6">
                   <div className="bg-white p-8 rounded-3xl border border-[#141414]/5 shadow-sm space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="space-y-2 md:col-span-1">
+                      <div className="space-y-2">
                         <label className="text-xs font-bold uppercase tracking-widest text-[#141414]/40">Matrícula</label>
                         <input
                           type="text"
@@ -369,7 +377,38 @@ export default function App() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold uppercase tracking-widest text-[#141414]/40">Valor Bruto (Vantagens)</label>
+                        <label className="text-xs font-bold uppercase tracking-widest text-[#141414]/40">CPF</label>
+                        <input
+                          type="text"
+                          value={paystubData.cpf}
+                          onChange={(e) => setPaystubData({ ...paystubData, cpf: e.target.value })}
+                          placeholder="000.000.000-00"
+                          className="w-full px-4 py-3 rounded-xl border border-[#141414]/10 focus:border-[#141414] focus:ring-0 transition-all outline-none font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-[#141414]/40">Data de Admissão</label>
+                        <input
+                          type="text"
+                          value={paystubData.admissionDate}
+                          onChange={(e) => setPaystubData({ ...paystubData, admissionDate: e.target.value })}
+                          placeholder="DD/MM/AAAA"
+                          className="w-full px-4 py-3 rounded-xl border border-[#141414]/10 focus:border-[#141414] focus:ring-0 transition-all outline-none font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-[#141414]/40">Vínculo</label>
+                        <select
+                          value={paystubData.bondType}
+                          onChange={(e) => setPaystubData({ ...paystubData, bondType: e.target.value as '05' | '06' })}
+                          className="w-full px-4 py-3 rounded-xl border border-[#141414]/10 focus:border-[#141414] focus:ring-0 transition-all outline-none font-semibold bg-white"
+                        >
+                          <option value="06">06 - APOSENTADO</option>
+                          <option value="05">05 - PENSIONISTA</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 block mb-1 whitespace-nowrap">Valor Bruto (Vantagens)</label>
                         <div className="relative">
                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold opacity-30">R$</span>
                           <input
@@ -382,7 +421,7 @@ export default function App() {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold uppercase tracking-widest text-[#141414]/40">IRRF</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 block mb-1">IRRF</label>
                         <div className="relative">
                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold opacity-30">R$</span>
                           <input
@@ -395,7 +434,7 @@ export default function App() {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <label className="text-xs font-bold uppercase tracking-widest text-[#141414]/40">Previdência Municipal</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40 block mb-1">Previdência Municipal</label>
                         <div className="relative">
                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold opacity-30">R$</span>
                           <input
@@ -509,34 +548,47 @@ export default function App() {
                         <span className="text-sm opacity-70">Total Empréstimos</span>
                         <span className="font-bold text-amber-400">{formatCurrency(paystubData.consignedLoans.reduce((acc, l) => acc + l.value, 0))}</span>
                       </div>
+                      <div className="flex justify-between items-center pb-4 border-b border-white/10">
+                        <span className="text-sm opacity-70">Margem Disponível</span>
+                        <span className="font-bold text-green-400">
+                          {formatCurrency(Math.max(0, ((paystubData.grossValue - paystubData.irrf - paystubData.pension) * 0.35) - paystubData.consignedLoans.reduce((acc, l) => acc + l.value, 0)))}
+                        </span>
+                      </div>
                       <div className="flex justify-between items-center pt-2">
                         <span className="text-sm opacity-70">Comprometido</span>
-                        <span className="text-2xl font-bold">
+                        <span className={cn(
+                          "text-2xl font-bold",
+                          (paystubData.grossValue - paystubData.irrf - paystubData.pension > 0 && 
+                           (paystubData.consignedLoans.reduce((acc, l) => acc + l.value, 0) / (paystubData.grossValue - paystubData.irrf - paystubData.pension)) * 100 >= 35)
+                            ? "text-red-500"
+                            : "text-white"
+                        )}>
                           {paystubData.grossValue - paystubData.irrf - paystubData.pension > 0 
                             ? ((paystubData.consignedLoans.reduce((acc, l) => acc + l.value, 0) / (paystubData.grossValue - paystubData.irrf - paystubData.pension)) * 100).toFixed(1)
                             : '0.0'}%
                         </span>
                       </div>
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-3 mt-8">
-                      <button
-                        onClick={prevStep}
-                        className="py-4 border border-white/20 text-white rounded-2xl font-bold hover:bg-white/5 transition-colors"
-                      >
-                        Voltar
-                      </button>
-                      <button
-                        disabled={!paystubData.serverName || paystubData.grossValue <= 0}
-                        onClick={nextStep}
-                        className="py-4 bg-white text-[#141414] rounded-2xl font-bold flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100"
-                      >
-                        Próximo
-                        <ChevronRight size={20} />
-                      </button>
-                    </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-8 border-t border-[#141414]/5">
+                <button
+                  onClick={prevStep}
+                  className="flex items-center gap-2 px-6 py-3 rounded-full border border-[#141414]/10 font-bold hover:bg-white transition-colors"
+                >
+                  <ChevronLeft size={20} />
+                  Voltar
+                </button>
+                <button
+                  disabled={!paystubData.serverName || paystubData.grossValue <= 0}
+                  onClick={nextStep}
+                  className="flex items-center gap-2 px-8 py-4 rounded-full bg-[#141414] text-white font-bold hover:scale-105 transition-transform shadow-xl disabled:opacity-50 disabled:hover:scale-100"
+                >
+                  Próximo Passo
+                  <ChevronRight size={20} />
+                </button>
               </div>
             </motion.div>
           )}
@@ -729,7 +781,7 @@ export default function App() {
       {/* Footer */}
       <footer className="mt-auto py-12 border-t border-[#141414]/5">
         <div className="max-w-5xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <p className="text-sm text-[#141414]/40 font-medium">© 2026 MargemFacil. Todos os direitos reservados.</p>
+          <p className="text-sm text-[#141414]/40 font-medium">© 2026 LPC sistemas e assessoria. Todos os direitos reservados.</p>
           <div className="flex gap-8">
             <a href="#" className="text-xs font-bold uppercase tracking-widest text-[#141414]/40 hover:text-[#141414] transition-colors">Privacidade</a>
             <a href="#" className="text-xs font-bold uppercase tracking-widest text-[#141414]/40 hover:text-[#141414] transition-colors">Termos de Uso</a>
