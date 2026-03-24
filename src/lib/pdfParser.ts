@@ -3,13 +3,23 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { PaystubData, ConsignedLoan } from '../types';
 
 // Using a more reliable worker initialization for Vite/Browser environments
-const DEFAULT_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.5.207/build/pdf.worker.min.mjs';
+const DEFAULT_WORKER_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 try {
   pdfjsLib.GlobalWorkerOptions.workerSrc = DEFAULT_WORKER_URL;
+  console.log('PDF.js worker initialized:', DEFAULT_WORKER_URL);
 } catch (e) {
-  console.warn('Failed to set workerSrc, PDF parsing might fail');
+  console.warn('Failed to set workerSrc, PDF parsing might fail', e);
 }
+
+// Helper to get API key safely
+const getApiKey = () => {
+  // Try Vite env first, then process.env (for compatibility)
+  const key = (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+              (typeof process !== 'undefined' ? process.env?.GEMINI_API_KEY : '') || 
+              '';
+  return key;
+};
 
 export class PDFParsingError extends Error {
   constructor(public type: 'LOAD_ERROR' | 'EXTRACT_ERROR' | 'VALIDATION_ERROR' | 'SCANNED_ERROR' | 'AI_ERROR', message: string) {
@@ -26,7 +36,7 @@ async function pdfToImage(arrayBuffer: ArrayBuffer): Promise<string> {
   const pdf = await loadingTask.promise;
   const page = await pdf.getPage(1);
   
-  const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR
+  const viewport = page.getViewport({ scale: 1.5 }); // Balanced scale for OCR and token limits
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
   
@@ -77,7 +87,13 @@ export async function parsePaystubWithAI(file: File): Promise<Partial<PaystubDat
       mimeType = file.type;
     }
     
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+    const apiKey = getApiKey();
+    if (!apiKey) {
+      console.error('Gemini API Key is missing');
+      throw new PDFParsingError('AI_ERROR', 'Chave de API do Gemini não configurada. Por favor, insira os dados manualmente.');
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
     
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -106,6 +122,7 @@ export async function parsePaystubWithAI(file: File): Promise<Partial<PaystubDat
       ],
       config: {
         responseMimeType: "application/json",
+        maxOutputTokens: 2048,
         responseSchema: {
           type: Type.OBJECT,
           properties: {

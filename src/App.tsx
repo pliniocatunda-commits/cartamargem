@@ -112,6 +112,18 @@ export default function App() {
       } else {
         setExtractionError(error.message || 'Não foi possível ler o arquivo. Por favor, insira os dados manualmente.');
       }
+      
+      // If AI error, we still want to let the user proceed to manual entry
+      if (error instanceof PDFParsingError && error.type === 'AI_ERROR') {
+        setPaystubData({
+          serverName: 'SERVIDOR NÃO IDENTIFICADO',
+          registration: '',
+          grossValue: 0,
+          irrf: 0,
+          pension: 0,
+          consignedLoans: [],
+        });
+      }
     } finally {
       setIsProcessing(false);
       setAiStatus(null);
