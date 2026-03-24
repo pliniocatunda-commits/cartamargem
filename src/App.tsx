@@ -309,33 +309,37 @@ export default function App() {
                       )}
                     </button>
                   </div>
-                  {extractionError && (
-                    <motion.div 
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className={cn(
-                        "flex flex-col gap-1 text-xs font-medium p-3 rounded-lg border",
-                        errorType === 'VALIDATION_ERROR' 
-                          ? "text-amber-600 bg-amber-50 border-amber-100" 
-                          : "text-red-600 bg-red-50 border-red-100"
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <AlertCircle size={14} />
-                        {extractionError}
-                      </div>
-                      {errorType === 'SCANNED_ERROR' && (
-                        <p className="text-[10px] opacity-70 ml-5">
-                          Dica: Tente baixar o PDF original do portal do servidor em vez de usar uma foto.
-                        </p>
-                      )}
-                      {errorType === 'VALIDATION_ERROR' && (
-                        <p className="text-[10px] opacity-70 ml-5">
-                          Dica: Você pode completar os campos que faltam manualmente abaixo.
-                        </p>
-                      )}
-                    </motion.div>
-                  )}
+                  <AnimatePresence>
+                    {extractionError && (
+                      <motion.div 
+                        key="extraction-error"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 10 }}
+                        className={cn(
+                          "flex flex-col gap-1 text-xs font-medium p-3 rounded-lg border",
+                          errorType === 'VALIDATION_ERROR' 
+                            ? "text-amber-600 bg-amber-50 border-amber-100" 
+                            : "text-red-600 bg-red-50 border-red-100"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <AlertCircle size={14} />
+                          {extractionError}
+                        </div>
+                        {errorType === 'SCANNED_ERROR' && (
+                          <p className="text-[10px] opacity-70 ml-5">
+                            Dica: Tente baixar o PDF original do portal do servidor em vez de usar uma foto.
+                          </p>
+                        )}
+                        {errorType === 'VALIDATION_ERROR' && (
+                          <p className="text-[10px] opacity-70 ml-5">
+                            Dica: Você pode completar os campos que faltam manualmente abaixo.
+                          </p>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
 
@@ -419,50 +423,64 @@ export default function App() {
                     </div>
 
                     <div className="space-y-4">
-                      {paystubData.consignedLoans.length === 0 ? (
-                        <div className="py-12 border-2 border-dashed border-[#141414]/10 rounded-2xl flex flex-col items-center justify-center text-[#141414]/30">
-                          <FileText size={48} strokeWidth={1} className="mb-2" />
-                          <p className="text-sm font-medium">Nenhum consignado registrado</p>
-                        </div>
-                      ) : (
-                        paystubData.consignedLoans.map((loan) => (
-                          <div key={loan.id} className="flex gap-4 items-end animate-in fade-in slide-in-from-top-2">
-                            <div className="flex-1 space-y-2">
-                              <label className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Banco</label>
-                              <select
-                                value={loan.bank}
-                                onChange={(e) => handleLoanChange(loan.id, 'bank', e.target.value)}
-                                className="w-full px-4 py-2 rounded-xl border border-[#141414]/10 outline-none focus:border-[#141414] bg-white font-medium"
-                              >
-                                <option value="">Selecione o Banco</option>
-                                {BANKS.map(b => (
-                                  <option key={b.id} value={b.id}>{b.name}</option>
-                                ))}
-                                <option value="OUTROS">Outros Bancos</option>
-                              </select>
-                            </div>
-                            <div className="w-40 space-y-2">
-                              <label className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Valor Parcela</label>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold opacity-30">R$</span>
-                                <input
-                                  type="text"
-                                  value={formatCurrencyInput(loan.value)}
-                                  onChange={(e) => handleLoanChange(loan.id, 'value', parseCurrencyInput(e.target.value))}
-                                  placeholder="0,00"
-                                  className="w-full pl-8 pr-4 py-2 rounded-xl border border-[#141414]/10 outline-none focus:border-[#141414] font-bold"
-                                />
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => handleRemoveLoan(loan.id)}
-                              className="p-2.5 rounded-xl text-red-500 hover:bg-red-50 transition-colors"
+                      <AnimatePresence mode="popLayout" initial={false}>
+                        {paystubData.consignedLoans.length === 0 ? (
+                          <motion.div
+                            key="empty-loans"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="py-12 border-2 border-dashed border-[#141414]/10 rounded-2xl flex flex-col items-center justify-center text-[#141414]/30"
+                          >
+                            <FileText size={48} strokeWidth={1} className="mb-2" />
+                            <p className="text-sm font-medium">Nenhum consignado registrado</p>
+                          </motion.div>
+                        ) : (
+                          paystubData.consignedLoans.map((loan) => (
+                            <motion.div 
+                              key={loan.id}
+                              initial={{ opacity: 0, y: -10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              className="flex gap-4 items-end"
                             >
-                              <Trash2 size={20} />
-                            </button>
-                          </div>
-                        ))
-                      )}
+                              <div className="flex-1 space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Banco</label>
+                                <select
+                                  value={loan.bank}
+                                  onChange={(e) => handleLoanChange(loan.id, 'bank', e.target.value)}
+                                  className="w-full px-4 py-2 rounded-xl border border-[#141414]/10 outline-none focus:border-[#141414] bg-white font-medium"
+                                >
+                                  <option value="">Selecione o Banco</option>
+                                  {BANKS.map(b => (
+                                    <option key={b.id} value={b.id}>{b.name}</option>
+                                  ))}
+                                  <option value="OUTROS">Outros Bancos</option>
+                                </select>
+                              </div>
+                              <div className="w-40 space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/40">Valor Parcela</label>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold opacity-30">R$</span>
+                                  <input
+                                    type="text"
+                                    value={formatCurrencyInput(loan.value)}
+                                    onChange={(e) => handleLoanChange(loan.id, 'value', parseCurrencyInput(e.target.value))}
+                                    placeholder="0,00"
+                                    className="w-full pl-8 pr-4 py-2 rounded-xl border border-[#141414]/10 outline-none focus:border-[#141414] font-bold"
+                                  />
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handleRemoveLoan(loan.id)}
+                                className="p-2.5 rounded-xl text-red-500 hover:bg-red-50 transition-colors"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </motion.div>
+                          ))
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
                 </div>
@@ -531,6 +549,7 @@ export default function App() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               className="space-y-8"
+              id="step-3-container"
             >
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="max-w-2xl">
