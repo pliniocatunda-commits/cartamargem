@@ -803,7 +803,13 @@ export default function App() {
                     Voltar
                   </button>
                   <button
-                    onClick={() => generateLetterPDF(selectedBank, paystubData, calculation, signatory)}
+                    onClick={async () => {
+                      try {
+                        await generateLetterPDF(selectedBank, paystubData, calculation, signatory);
+                      } catch (error) {
+                        console.error('Error generating PDF:', error);
+                      }
+                    }}
                     className="flex items-center justify-center gap-3 py-5 rounded-2xl bg-[#141414] text-white font-bold hover:scale-[1.02] transition-transform shadow-xl"
                   >
                     <Download size={24} />

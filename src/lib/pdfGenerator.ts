@@ -71,13 +71,30 @@ function numberToWords(n: number): string {
   return result;
 }
 
-export function generateLetterPDF(
+export async function generateLetterPDF(
   bank: Bank,
   data: PaystubData,
   result: CalculationResult,
   signatory: Signatory
 ) {
   const doc = new jsPDF();
+  
+  // Load logo as base64 for better reliability in jsPDF
+  let logoData: string | null = null;
+  try {
+    const response = await fetch('/logo-ipme.png');
+    if (response.ok) {
+      const blob = await response.blob();
+      logoData = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    }
+  } catch (e) {
+    console.error('Error loading logo:', e);
+  }
+
   const date = new Date();
   const day = String(date.getDate()).padStart(2, '0');
   const monthNames = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
@@ -90,11 +107,10 @@ export function generateLetterPDF(
   const availableMargin = Math.max(0, margin35 - totalLoans);
 
   const drawHeader = (doc: jsPDF) => {
-    // Try to load the official logo if the user uploaded it to the public folder
-    try {
+    if (logoData) {
       // Centering the logo: (210 - 60) / 2 = 75
-      doc.addImage('/logo-ipme.png', 'PNG', 75, 10, 60, 30);
-    } catch (e) {
+      doc.addImage(logoData, 'PNG', 75, 10, 60, 30);
+    } else {
       // Fallback to improved simulation if image is not found
       // Colorful figures (circles/heads)
       doc.setDrawColor(0);
@@ -141,18 +157,14 @@ export function generateLetterPDF(
   // --- PAGE 1: COMUNICADO ---
   drawHeader(doc);
   
-  doc.setFontSize(11);
+  doc.setFontSize(16);
   doc.setFont('times', 'bold');
   doc.setTextColor(0);
-  doc.text('MUNICÍPIO DE EUSÉBIO-CE', 105, 50, { align: 'center' });
-  doc.text('INSTITUTO DE PREVIDÊNCIA MUNICIPAL DE EUSÉBIO', 105, 56, { align: 'center' });
-
-  doc.setFontSize(16);
-  doc.text('COMUNICADO', 105, 75, { align: 'center' });
+  doc.text('COMUNICADO', 105, 70, { align: 'center' });
 
   doc.setFontSize(11);
   doc.setFont('times', 'normal');
-  doc.text(dateStr, 190, 90, { align: 'right' });
+  doc.text(dateStr, 190, 85, { align: 'right' });
 
   doc.setFont('times', 'bold');
   doc.text('Assunto: Solicitação de Informação de relativos Empréstimos Consignados', 20, 105);
@@ -165,19 +177,19 @@ export function generateLetterPDF(
   const comunicadoPart2 = `A motivação dessa solicitação se dá em virtude de manter o controle necessário para emissão de Cartas-Margens aos segurados, uma vez que as consignações ainda são manuais e de que tal conduta permite uma melhor aplicação da lei pertinente. Visando evitar qualquer eventualidade, reforçamos a cooperação da Instituição Bancária em favor deste Instituto de Previdência.`;
 
   // Justified text simulation using splitTextToSize and text with align: justify
-  doc.text(comunicadoPart1, 20, 135, { align: 'justify', maxWidth: 170 });
-  doc.text(comunicadoPart2, 20, 175, { align: 'justify', maxWidth: 170 });
+  doc.text(comunicadoPart1, 20, 130, { align: 'justify', maxWidth: 170 });
+  doc.text(comunicadoPart2, 20, 160, { align: 'justify', maxWidth: 170 });
 
-  doc.text('No ensejo, renovo os votos de estima e consideração.', 20, 210);
+  doc.text('No ensejo, renovo os votos de estima e consideração.', 20, 190);
 
   doc.setTextColor(0);
-  doc.text('_________________________________________________', 105, 245, { align: 'center' });
+  doc.text('_________________________________________________', 105, 225, { align: 'center' });
   doc.setFont('times', 'bold');
-  doc.text(signatory.name, 105, 251, { align: 'center' });
+  doc.text(signatory.name, 105, 231, { align: 'center' });
   doc.setFont('times', 'normal');
-  doc.text(`Matrícula ${signatory.registration}`, 105, 257, { align: 'center' });
+  doc.text(`Matrícula ${signatory.registration}`, 105, 237, { align: 'center' });
   doc.setFont('times', 'bold');
-  doc.text(signatory.position, 105, 263, { align: 'center' });
+  doc.text(signatory.position, 105, 243, { align: 'center' });
 
   drawFooter(doc);
 
