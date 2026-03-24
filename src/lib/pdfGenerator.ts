@@ -118,12 +118,12 @@ export function generateLetterPDF(
       
       doc.setFont('times', 'bold');
       doc.setFontSize(26);
-      doc.setTextColor(0, 0, 0); // Changed to BLACK
+      doc.setTextColor(0, 40, 100); // Dark Blue for fallback
       doc.text('IPME', 135, 25, { align: 'center' });
     }
     
     doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0); // Changed to BLACK
+    doc.setTextColor(0, 40, 100); // Dark Blue for fallback
     doc.setFont('times', 'italic');
     doc.text('INSTITUTO DE PREVIDÊNCIA', 105, 33, { align: 'center' });
     doc.text('DO MUNICÍPIO DE EUSÉBIO', 105, 37, { align: 'center' });
@@ -131,7 +131,7 @@ export function generateLetterPDF(
 
   const drawFooter = (doc: jsPDF) => {
     doc.setFontSize(8);
-    doc.setTextColor(0, 0, 0); // Changed to BLACK
+    doc.setTextColor(0, 50, 150); // BLUE footer as requested
     doc.text('INSTITUTO DE PREVIDÊNCIA DOS SERVIDORES PÚBLICOS MUNICIPAIS DE EUSÉBIO', 105, 275, { align: 'center' });
     doc.text('AV. CORONEL CÍCERO SÁ, 498, CENTRO, CEP: 61760435', 105, 280, { align: 'center' });
     doc.text('CNPJ: 04.865.123/0001-46', 105, 285, { align: 'center' });

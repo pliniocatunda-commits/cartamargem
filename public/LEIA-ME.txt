@@ -1,0 +1,1 @@
+Este diretório é destinado a arquivos estáticos como o logotipo oficial (logo-ipme.png).
