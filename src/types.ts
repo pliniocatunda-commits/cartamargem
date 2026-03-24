@@ -12,6 +12,7 @@ export interface PaystubData {
   cpf?: string;
   admissionDate?: string;
   bondType?: '05' | '06';
+  gender?: 'M' | 'F';
   grossValue: number;
   irrf: number;
   pension: number;

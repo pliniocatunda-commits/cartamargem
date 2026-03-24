@@ -177,19 +177,19 @@ export async function generateLetterPDF(
   const comunicadoPart2 = `A motivação dessa solicitação se dá em virtude de manter o controle necessário para emissão de Cartas-Margens aos segurados, uma vez que as consignações ainda são manuais e de que tal conduta permite uma melhor aplicação da lei pertinente. Visando evitar qualquer eventualidade, reforçamos a cooperação da Instituição Bancária em favor deste Instituto de Previdência.`;
 
   // Justified text simulation using splitTextToSize and text with align: justify
-  doc.text(comunicadoPart1, 20, 130, { align: 'justify', maxWidth: 170 });
-  doc.text(comunicadoPart2, 20, 160, { align: 'justify', maxWidth: 170 });
+  doc.text(comunicadoPart1, 20, 130, { align: 'justify', maxWidth: 170, lineHeightFactor: 1.15 });
+  doc.text(comunicadoPart2, 20, 155, { align: 'justify', maxWidth: 170, lineHeightFactor: 1.15 });
 
-  doc.text('No ensejo, renovo os votos de estima e consideração.', 20, 190);
+  doc.text('No ensejo, renovo os votos de estima e consideração.', 20, 180);
 
   doc.setTextColor(0);
-  doc.text('_________________________________________________', 105, 225, { align: 'center' });
+  doc.text('_________________________________________________', 105, 215, { align: 'center' });
   doc.setFont('times', 'bold');
-  doc.text(signatory.name, 105, 231, { align: 'center' });
+  doc.text(signatory.name, 105, 221, { align: 'center' });
   doc.setFont('times', 'normal');
-  doc.text(`Matrícula ${signatory.registration}`, 105, 237, { align: 'center' });
+  doc.text(`Matrícula ${signatory.registration}`, 105, 227, { align: 'center' });
   doc.setFont('times', 'bold');
-  doc.text(signatory.position, 105, 243, { align: 'center' });
+  doc.text(signatory.position, 105, 233, { align: 'center' });
 
   drawFooter(doc);
 
@@ -222,8 +222,10 @@ export async function generateLetterPDF(
   doc.text(introText, 20, 85, { align: 'justify', maxWidth: 170 });
 
   let y = 105;
-  const bondName = data.bondType === '05' ? 'PENSIONISTA' : 'APOSENTADO';
-  const bondLabel = data.bondType === '05' ? 'PENSIONISTA' : 'APOSENTADA';
+  const isMale = data.gender === 'M';
+  const bondName = data.bondType === '05' ? 'PENSIONISTA' : (isMale ? 'APOSENTADO' : 'APOSENTADA');
+  const bondLabel = data.bondType === '05' ? 'PENSIONISTA' : (isMale ? 'APOSENTADO' : 'APOSENTADA');
+  const article = data.bondType === '05' ? 'da' : (isMale ? 'do' : 'da');
 
   doc.setFont('times', 'bold');
   doc.text('NOME:', 20, y);
@@ -265,9 +267,9 @@ export async function generateLetterPDF(
   doc.text(`- Para renovação : R$ ${formatCurrency(result.renewalMargin).replace('R$', '').trim()} ( ${numberToWords(result.renewalMargin)} )`, 30, y);
   y += 12;
 
-  const bodyPart1 = `Esta proposta – por parte da ${bondName.toLowerCase()} - permanecerá válida por 30 dias e este Ente Administrativo se compromete a realizar a averbação (consignação) e operar os descontos das parcelas após a confirmação da contratação do empréstimo e das parcelas pelo ${getBankFullName(bank)}, por meio da troca de arquivos eletrônicos.`;
+  const bodyPart1 = `Esta proposta – por parte ${article} ${bondName.toLowerCase()} - permanecerá válida por 30 dias e este Ente Administrativo se compromete a realizar a averbação (consignação) e operar os descontos das parcelas após a confirmação da contratação do empréstimo e das parcelas pelo ${getBankFullName(bank)}, por meio da troca de arquivos eletrônicos.`;
   
-  const bodyPart2 = `A ${bondName.toLowerCase()} também autoriza expressamente, de forma irretratável e irrevogável, o desconto dos valores em seus proventos pelo INSTITUTO DE PREVIDÊNCIA DO MUNICÍPIO DE EUSÉBIO correspondente à parcela do empréstimo consignado concedido pelo ${getBankFullName(bank)}, conforme firmado entre a Instituição Bancária e a ${bondName.toLowerCase()}.`;
+  const bodyPart2 = `${article.charAt(0).toUpperCase() + article.slice(1)} ${bondName.toLowerCase()} também autoriza expressamente, de forma irretratável e irrevogável, o desconto dos valores em seus proventos pelo INSTITUTO DE PREVIDÊNCIA DO MUNICÍPIO DE EUSÉBIO correspondente à parcela do empréstimo consignado concedido pelo ${getBankFullName(bank)}, conforme firmado entre a Instituição Bancária e ${article} ${bondName.toLowerCase()}.`;
   
   doc.text(bodyPart1, 20, y, { align: 'justify', maxWidth: 170 });
   y += 20;
