@@ -142,7 +142,7 @@ export function generateLetterPDF(
   drawHeader(doc);
   
   doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.setTextColor(0);
   doc.text('MUNICÍPIO DE EUSÉBIO-CE', 105, 50, { align: 'center' });
   doc.text('INSTITUTO DE PREVIDÊNCIA MUNICIPAL DE EUSÉBIO', 105, 56, { align: 'center' });
@@ -151,15 +151,15 @@ export function generateLetterPDF(
   doc.text('COMUNICADO', 105, 75, { align: 'center' });
 
   doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   doc.text(dateStr, 190, 90, { align: 'right' });
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text('Assunto: Solicitação de Informação de relativos Empréstimos Consignados', 20, 105);
   
   doc.text(`Ao Ilmo.(a) Sr.(a) Gerente Desta Instituição Bancária (${getBankFullName(bank)})`, 20, 120);
 
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   const comunicadoPart1 = `Cumprimentando-o(a) cordialmente, venho através deste, SOLICITAR que, caso sejam concretizadas renovação, renegociação ou reparcelamento de empréstimos consignados por meio da Carta-Margem a que este comunicado se anexa, seja informado de imediato ao Instituto de Previdência do Município de Eusébio – IPME, pelo endereço de e-mail que segue: mikaely.vieira@ipmeusebio.ce.gov.br`;
   
   const comunicadoPart2 = `A motivação dessa solicitação se dá em virtude de manter o controle necessário para emissão de Cartas-Margens aos segurados, uma vez que as consignações ainda são manuais e de que tal conduta permite uma melhor aplicação da lei pertinente. Visando evitar qualquer eventualidade, reforçamos a cooperação da Instituição Bancária em favor deste Instituto de Previdência.`;
@@ -172,11 +172,11 @@ export function generateLetterPDF(
 
   doc.setTextColor(0);
   doc.text('_________________________________________________', 105, 245, { align: 'center' });
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text(signatory.name, 105, 251, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   doc.text(`Matrícula ${signatory.registration}`, 105, 257, { align: 'center' });
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text(signatory.position, 105, 263, { align: 'center' });
 
   drawFooter(doc);
@@ -190,7 +190,7 @@ export function generateLetterPDF(
   doc.setDrawColor(0);
   doc.rect(135, 40, 55, 25);
   doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   doc.text('Espécie: Dados Pessoais', 137, 45);
   doc.text('Grau de Sigilo: Médio', 137, 49);
   doc.text('Dispensado de Consentimento', 137, 53);
@@ -198,12 +198,12 @@ export function generateLetterPDF(
   doc.text('13.709/2018.', 137, 61);
 
   doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text(`Ao ${getBankFullName(bank).toUpperCase()}.`, 20, 50);
 
   doc.text('Ref.: Solicitação de Declaração de Margem Consignável com o fim de contratação de empréstimo consignado.', 20, 65, { maxWidth: 110 });
 
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   doc.text('Senhor Gerente,', 20, 80);
 
   const introText = `O INSTITUTO DE PREVIDÊNCIA DO MUNICÍPIO DE EUSÉBIO, CNPJ nº 04.865.123/0001-46, vem por meio desta informar os dados abaixo para fins de concessão de empréstimo consignado em folha de pagamentos.`;
@@ -213,41 +213,41 @@ export function generateLetterPDF(
   const bondName = data.bondType === '05' ? 'PENSIONISTA' : 'APOSENTADO';
   const bondLabel = data.bondType === '05' ? 'PENSIONISTA' : 'APOSENTADA';
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text('NOME:', 20, y);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   doc.text(data.serverName.toUpperCase(), 60, y);
   y += 6;
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text('CPF:', 20, y);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   doc.text(data.cpf || '---', 60, y);
   y += 6;
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text('ESPÉCIE DE VÍNCULO:', 20, y);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   doc.text(bondLabel, 70, y);
   y += 6;
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text('ADMISSÃO:', 20, y);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   doc.text(data.admissionDate || '---', 60, y);
   y += 6;
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text('MATRÍCULA FUNCIONAL:', 20, y);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   doc.text(data.registration, 75, y);
   y += 6;
 
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text('VALOR LEGALMENTE DISPONÍVEL DE PARCELA:', 20, y);
   y += 8;
 
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   doc.text(`- Para crédito novo: R$ ${formatCurrency(availableMargin).replace('R$', '').trim()} ( ${numberToWords(availableMargin)} )`, 30, y);
   y += 6;
   doc.text(`- Para renovação : R$ ${formatCurrency(result.renewalMargin).replace('R$', '').trim()} ( ${numberToWords(result.renewalMargin)} )`, 30, y);
@@ -270,14 +270,14 @@ export function generateLetterPDF(
   doc.line(20, y, 90, y);
   doc.line(120, y, 190, y);
   y += 5;
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text(`${bondName.toUpperCase()} PROPONENTE`, 55, y, { align: 'center' });
   doc.text(signatory.name, 155, y, { align: 'center' });
   y += 5;
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('times', 'normal');
   doc.text(`Matrícula ${signatory.registration}`, 155, y, { align: 'center' });
   y += 5;
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('times', 'bold');
   doc.text(signatory.position, 155, y, { align: 'center' });
 
   drawFooter(doc);
