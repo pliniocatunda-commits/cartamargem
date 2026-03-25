@@ -88,21 +88,42 @@ export async function generateLetterPDF(
     const response = await fetch('/logo-ipme.png');
     if (response.ok) {
       const blob = await response.blob();
+      if (blob.size === 0) {
+        throw new Error('Logo file is empty (0 bytes)');
+      }
+      
+      // Use a canvas to normalize the image format (handles corrupt/interlaced PNGs)
       logoData = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              reject(new Error('Could not get canvas context'));
+              return;
+            }
+            ctx.drawImage(img, 0, 0);
+            // Convert to a high-quality JPEG or PNG that jsPDF likes
+            const dataUrl = canvas.toDataURL('image/png');
+            resolve(dataUrl);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        img.onerror = () => reject(new Error('Failed to load image into browser for normalization'));
+        
         const reader = new FileReader();
         reader.onloadend = () => {
-          const result = reader.result as string;
-          // Basic check if it's a valid data URL
-          if (result.startsWith('data:image/png;base64,')) {
-            resolve(result);
-          } else {
-            reject(new Error('Invalid PNG data URL'));
-          }
+          img.src = reader.result as string;
         };
         reader.onerror = reject;
         reader.readAsDataURL(blob);
       });
-      console.log('Logo loaded successfully');
+      console.log('Logo loaded and normalized successfully');
     } else {
       console.warn('Logo not found (404)');
     }
