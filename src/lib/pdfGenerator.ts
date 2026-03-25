@@ -81,21 +81,45 @@ export async function generateLetterPDF(
   const doc = new jsPDF();
   console.log('jsPDF instance created');
   
+  // CONFIGURAÇÃO DO LOGOTIPO: 
+  // Se o upload local falhar, você pode colar o link direto do GitHub (Raw) aqui:
+  const EXTERNAL_LOGO_URL = ''; // Ex: 'https://raw.githubusercontent.com/usuario/repo/main/logo.png'
+  const LOCAL_LOGO_URL = '/logo-ipme.png';
+  
   // Load logo as base64 for better reliability in jsPDF
   let logoData: string | null = null;
+  
+  const fetchLogo = async (url: string) => {
+    console.log(`Attempting to fetch logo from: ${url}`);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const blob = await response.blob();
+    if (blob.size === 0) throw new Error('File is empty (0 bytes)');
+    return blob;
+  };
+
   try {
-    console.log('Fetching logo...');
-    const response = await fetch('/logo-ipme.png');
-    if (response.ok) {
-      const blob = await response.blob();
-      console.log(`Logo fetch result: type=${blob.type}, size=${blob.size} bytes`);
-      
-      if (blob.size === 0) {
-        throw new Error('Logo file is empty (0 bytes). Please upload a valid image file.');
+    let blob;
+    try {
+      // Tenta primeiro a URL externa se estiver preenchida
+      if (EXTERNAL_LOGO_URL) {
+        blob = await fetchLogo(EXTERNAL_LOGO_URL);
+      } else {
+        blob = await fetchLogo(LOCAL_LOGO_URL);
       }
-      
-      // Use a canvas to normalize the image format (handles corrupt/interlaced PNGs)
-      logoData = await new Promise((resolve, reject) => {
+    } catch (e) {
+      console.warn('Primary logo fetch failed, trying local fallback...', e);
+      if (EXTERNAL_LOGO_URL) {
+        blob = await fetchLogo(LOCAL_LOGO_URL);
+      } else {
+        throw e;
+      }
+    }
+
+    console.log(`Logo blob received: type=${blob.type}, size=${blob.size} bytes`);
+    
+    // Use a canvas to normalize the image format
+    logoData = await new Promise((resolve, reject) => {
         // Check the file signature (Magic Number) to identify the true format
         const checkReader = new FileReader();
         checkReader.onload = (e) => {
