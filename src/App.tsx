@@ -38,7 +38,6 @@ export default function App() {
     cpf: '',
     admissionDate: '',
     bondType: '06',
-    gender: 'M',
     grossValue: 0,
     irrf: 0,
     pension: 0,
@@ -419,17 +418,6 @@ export default function App() {
                         >
                           <option value="06">06 - APOSENTADO</option>
                           <option value="05">05 - PENSIONISTA</option>
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold uppercase tracking-widest text-[#141414]/40">Gênero</label>
-                        <select
-                          value={paystubData.gender}
-                          onChange={(e) => setPaystubData({ ...paystubData, gender: e.target.value as 'M' | 'F' })}
-                          className="w-full px-4 py-3 rounded-xl border border-[#141414]/10 focus:border-[#141414] focus:ring-0 transition-all outline-none font-semibold bg-white"
-                        >
-                          <option value="M">Masculino</option>
-                          <option value="F">Feminino</option>
                         </select>
                       </div>
                       <div className="space-y-2">
@@ -822,6 +810,7 @@ export default function App() {
                         console.log('PDF generation successful');
                       } catch (error) {
                         console.error('Error generating PDF:', error);
+                        alert('Erro ao gerar PDF: ' + (error instanceof Error ? error.message : String(error)));
                       }
                     }}
                     className="flex items-center justify-center gap-3 py-5 rounded-2xl bg-[#141414] text-white font-bold hover:scale-[1.02] transition-transform shadow-xl"

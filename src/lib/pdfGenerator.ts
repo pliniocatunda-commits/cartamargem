@@ -79,10 +79,12 @@ export async function generateLetterPDF(
 ) {
   console.log('Generating PDF for:', data.serverName);
   const doc = new jsPDF();
+  console.log('jsPDF instance created');
   
   // Load logo as base64 for better reliability in jsPDF
   let logoData: string | null = null;
   try {
+    console.log('Fetching logo...');
     const response = await fetch('/logo-ipme.png');
     if (response.ok) {
       const blob = await response.blob();
@@ -91,6 +93,9 @@ export async function generateLetterPDF(
         reader.onloadend = () => resolve(reader.result as string);
         reader.readAsDataURL(blob);
       });
+      console.log('Logo loaded successfully');
+    } else {
+      console.warn('Logo not found (404)');
     }
   } catch (e) {
     console.error('Error loading logo:', e);
@@ -173,7 +178,7 @@ export async function generateLetterPDF(
   doc.text(`Ao Ilmo.(a) Sr.(a) Gerente Desta Instituição Bancária (${getBankFullName(bank)})`, 20, 120);
 
   doc.setFont('times', 'normal');
-  const comunicadoPart1 = `Cumprimentando-o(a) cordialmente, venho através deste, SOLICITAR que, caso sejam concretizadas renovação, renegociação ou reparcelamento de empréstimos consignados por meio da Carta-Margem a que este comunicado se anexa, seja informado de imediato ao Instituto de Previdência do Município de Eusébio – IPME, pelo endereço de e-mail que segue: mikaely.vieira@ipmeusebio.ce.gov.br`;
+  const comunicadoPart1 = `Cumprimentando-o(a) cordialmente, venho através deste, SOLICITAR que, caso sejam concretizadas renovação, renegociação ou reparcelamento de empréstimos consignados por meio da Carta-Margem a que este comunicado se anexa, seja informado de imediato ao Instituto de Previdência do Município de Eusébio - IPME, pelo endereço de e-mail que segue: mikaely.vieira@ipmeusebio.ce.gov.br`;
   
   const comunicadoPart2 = `A motivação dessa solicitação se dá em virtude de manter o controle necessário para emissão de Cartas-Margens aos segurados, uma vez que as consignações ainda são manuais e de que tal conduta permite uma melhor aplicação da lei pertinente. Visando evitar qualquer eventualidade, reforçamos a cooperação da Instituição Bancária em favor deste Instituto de Previdência.`;
 
@@ -231,11 +236,10 @@ export async function generateLetterPDF(
   doc.text(introText, 20, 85, { align: 'justify', maxWidth: 170 });
 
   let y = 105;
-  const isMale = data.gender === 'M';
-  const bondName = data.bondType === '05' ? 'PENSIONISTA' : (isMale ? 'APOSENTADO' : 'APOSENTADA');
-  const bondLabel = data.bondType === '05' ? 'PENSIONISTA' : (isMale ? 'APOSENTADO' : 'APOSENTADA');
-  const article = isMale ? 'o' : 'a';
-  const Article = isMale ? 'O' : 'A';
+  const bondName = data.bondType === '05' ? 'PENSIONISTA' : 'APOSENTADO(A)';
+  const bondLabel = data.bondType === '05' ? 'PENSIONISTA' : 'APOSENTADO(A)';
+  const article = 'o(a)';
+  const Article = 'O(A)';
 
   doc.setFont('times', 'bold');
   doc.text('NOME:', 20, y);
@@ -277,7 +281,7 @@ export async function generateLetterPDF(
   doc.text(`- Para renovação : R$ ${formatCurrency(result.renewalMargin).replace('R$', '').trim()} ( ${numberToWords(result.renewalMargin)} )`, 30, y);
   y += 12;
 
-  const bodyPart1 = `Esta proposta – por parte ${article} ${bondName.toLowerCase()} - permanecerá válida por 30 dias e este Ente Administrativo se compromete a realizar a averbação (consignação) e operar os descontos das parcelas após a confirmação da contratação do empréstimo e das parcelas pelo ${getBankFullName(bank)}, por meio da troca de arquivos eletrônicos.`;
+  const bodyPart1 = `Esta proposta - por parte ${article} ${bondName.toLowerCase()} - permanecerá válida por 30 dias e este Ente Administrativo se compromete a realizar a averbação (consignação) e operar os descontos das parcelas após a confirmação da contratação do empréstimo e das parcelas pelo ${getBankFullName(bank)}, por meio da troca de arquivos eletrônicos.`;
   
   const bodyPart2 = `${Article} ${bondName.toLowerCase()} também autoriza expressamente, de forma irretratável e irrevogável, o desconto dos valores em seus proventos pelo INSTITUTO DE PREVIDÊNCIA DO MUNICÍPIO DE EUSÉBIO correspondente à parcela do empréstimo consignado concedido pelo ${getBankFullName(bank)}, conforme firmado entre a Instituição Bancária e ${article} ${bondName.toLowerCase()}.`;
   
@@ -306,7 +310,9 @@ export async function generateLetterPDF(
 
   drawFooter(doc);
 
-  doc.save(`Carta_Margem_${bank}_${data.serverName.replace(/\s+/g, '_')}.pdf`);
+  console.log('Saving PDF...');
+  doc.save(`Carta_Margem_${bank}_${data.serverName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+  console.log('PDF saved successfully');
 }
 
 function getBankFullName(bank: Bank): string {
