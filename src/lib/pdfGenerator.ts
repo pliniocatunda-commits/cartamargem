@@ -88,9 +88,18 @@ export async function generateLetterPDF(
     const response = await fetch('/logo-ipme.png');
     if (response.ok) {
       const blob = await response.blob();
-      logoData = await new Promise((resolve) => {
+      logoData = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          // Basic check if it's a valid data URL
+          if (result.startsWith('data:image/png;base64,')) {
+            resolve(result);
+          } else {
+            reject(new Error('Invalid PNG data URL'));
+          }
+        };
+        reader.onerror = reject;
         reader.readAsDataURL(blob);
       });
       console.log('Logo loaded successfully');
@@ -99,6 +108,7 @@ export async function generateLetterPDF(
     }
   } catch (e) {
     console.error('Error loading logo:', e);
+    logoData = null; // Ensure it's null if loading fails
   }
 
   const date = new Date();
@@ -114,41 +124,47 @@ export async function generateLetterPDF(
 
   const drawHeader = (doc: jsPDF) => {
     if (logoData) {
-      // Centering the logo: (210 - 60) / 2 = 75
-      doc.addImage(logoData, 'PNG', 75, 10, 60, 30);
-    } else {
-      // Fallback to improved simulation if image is not found
-      // Colorful figures (circles/heads)
-      doc.setDrawColor(0);
-      doc.setFillColor(0, 180, 0); // Green
-      doc.circle(92, 18, 1.5, 'F');
-      doc.setFillColor(255, 230, 0); // Yellow
-      doc.circle(98, 15, 1.5, 'F');
-      doc.setFillColor(0, 200, 220); // Cyan
-      doc.circle(105, 15, 1.5, 'F');
-      doc.setFillColor(0, 0, 120); // Dark Blue
-      doc.circle(112, 18, 1.5, 'F');
-      doc.setFillColor(230, 0, 0); // Red
-      doc.circle(118, 22, 1.5, 'F');
-      
-      // Arches (bodies)
-      doc.setLineWidth(0.8);
-      doc.setDrawColor(0, 180, 0); doc.line(90, 23, 94, 20);
-      doc.setDrawColor(255, 230, 0); doc.line(96, 20, 100, 17);
-      doc.setDrawColor(0, 200, 220); doc.line(103, 17, 107, 20);
-      doc.setDrawColor(0, 0, 120); doc.line(110, 20, 114, 23);
-      
-      doc.setFont('times', 'bold');
-      doc.setFontSize(26);
-      doc.setTextColor(0, 40, 100); 
-      doc.text('IPME', 105, 28, { align: 'center' });
-
-      doc.setFontSize(9);
-      doc.setTextColor(0, 40, 100);
-      doc.setFont('times', 'italic');
-      doc.text('INSTITUTO DE PREVIDÊNCIA', 105, 33, { align: 'center' });
-      doc.text('DO MUNICÍPIO DE EUSÉBIO', 105, 37, { align: 'center' });
+      try {
+        // Centering the logo: (210 - 60) / 2 = 75
+        doc.addImage(logoData, 'PNG', 75, 10, 60, 30);
+        return; // Success
+      } catch (e) {
+        console.error('Error adding logo to PDF, using fallback:', e);
+        // If it fails, we'll fall through to the fallback below
+      }
     }
+    
+    // Fallback to improved simulation if image is not found or corrupt
+    // Colorful figures (circles/heads)
+    doc.setDrawColor(0);
+    doc.setFillColor(0, 180, 0); // Green
+    doc.circle(92, 18, 1.5, 'F');
+    doc.setFillColor(255, 230, 0); // Yellow
+    doc.circle(98, 15, 1.5, 'F');
+    doc.setFillColor(0, 200, 220); // Cyan
+    doc.circle(105, 15, 1.5, 'F');
+    doc.setFillColor(0, 0, 120); // Dark Blue
+    doc.circle(112, 18, 1.5, 'F');
+    doc.setFillColor(230, 0, 0); // Red
+    doc.circle(118, 22, 1.5, 'F');
+    
+    // Arches (bodies)
+    doc.setLineWidth(0.8);
+    doc.setDrawColor(0, 180, 0); doc.line(90, 23, 94, 20);
+    doc.setDrawColor(255, 230, 0); doc.line(96, 20, 100, 17);
+    doc.setDrawColor(0, 200, 220); doc.line(103, 17, 107, 20);
+    doc.setDrawColor(0, 0, 120); doc.line(110, 20, 114, 23);
+    
+    doc.setFont('times', 'bold');
+    doc.setFontSize(26);
+    doc.setTextColor(0, 40, 100); 
+    doc.text('IPME', 105, 28, { align: 'center' });
+
+    doc.setFontSize(9);
+    doc.setTextColor(0, 40, 100);
+    doc.setFont('times', 'italic');
+    doc.text('INSTITUTO DE PREVIDÊNCIA', 105, 33, { align: 'center' });
+    doc.text('DO MUNICÍPIO DE EUSÉBIO', 105, 37, { align: 'center' });
   };
 
   const drawFooter = (doc: jsPDF) => {
