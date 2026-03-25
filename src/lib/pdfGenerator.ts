@@ -115,17 +115,24 @@ export async function generateLetterPDF(
 
     if (blob) {
       logoData = await new Promise((resolve) => {
+        // Force image type if served as generic octet-stream
+        const imageBlob = blob.type === 'application/octet-stream' 
+          ? new Blob([blob], { type: 'image/png' }) 
+          : blob;
+          
         const img = new Image();
-        const objectUrl = URL.createObjectURL(blob);
+        const objectUrl = URL.createObjectURL(imageBlob);
         
         const timeout = setTimeout(() => {
           URL.revokeObjectURL(objectUrl);
+          console.warn('Logo loading timed out (5s)');
           resolve(null);
-        }, 3000);
+        }, 5000);
 
         img.onload = () => {
           clearTimeout(timeout);
           URL.revokeObjectURL(objectUrl);
+          console.log(`Logo decoded successfully: ${img.width}x${img.height}`);
           try {
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
@@ -138,13 +145,15 @@ export async function generateLetterPDF(
               resolve(null);
             }
           } catch (e) {
+            console.error('Canvas processing error:', e);
             resolve(null);
           }
         };
         
-        img.onerror = () => {
+        img.onerror = (err) => {
           clearTimeout(timeout);
           URL.revokeObjectURL(objectUrl);
+          console.error('Browser failed to decode the logo image:', err);
           resolve(null);
         };
         
