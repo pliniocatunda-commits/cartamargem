@@ -83,7 +83,7 @@ export async function generateLetterPDF(
   
   // CONFIGURAÇÃO DO LOGOTIPO: 
   // Se o upload local falhar, você pode colar o link direto do GitHub (Raw) aqui:
-  const EXTERNAL_LOGO_URL = ''; // Ex: 'https://raw.githubusercontent.com/usuario/repo/main/logo.png'
+  const EXTERNAL_LOGO_URL = 'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png';
   const LOCAL_LOGO_URL = '/logo-ipme.png';
   
   // Load logo as base64 for better reliability in jsPDF
@@ -210,13 +210,10 @@ export async function generateLetterPDF(
         img.src = objectUrl;
       });
       console.log('Logo loaded and normalized successfully');
-    } else {
-      console.warn('Logo not found (404)');
+    } catch (e) {
+      console.error('Error loading logo:', e);
+      logoData = null; // Ensure it's null if loading fails
     }
-  } catch (e) {
-    console.error('Error loading logo:', e);
-    logoData = null; // Ensure it's null if loading fails
-  }
 
   const date = new Date();
   const day = String(date.getDate()).padStart(2, '0');
