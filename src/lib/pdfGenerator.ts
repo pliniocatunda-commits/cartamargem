@@ -89,11 +89,20 @@ export async function generateLetterPDF(
   
   try {
     const fetchLogo = async (url: string) => {
-      const response = await fetch(url);
-      if (!response.ok) return null;
-      const blob = await response.blob();
-      if (blob.size === 0) return null;
-      return blob;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const blob = await response.blob();
+        console.log(`Logo fetch from ${url}: size=${blob.size} bytes, type=${blob.type}`);
+        if (blob.size === 0) {
+          console.warn(`Logo file at ${url} is empty (0 bytes).`);
+          return null;
+        }
+        return blob;
+      } catch (err) {
+        console.error(`Error fetching logo from ${url}:`, err);
+        return null;
+      }
     };
 
     let blob = null;
