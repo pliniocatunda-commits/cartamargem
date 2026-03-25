@@ -106,57 +106,87 @@ export async function generateLetterPDF(
     };
 
     const decodeLogo = async (blob: Blob): Promise<{ data: string, width: number, height: number } | null> => {
-      return new Promise((resolve) => {
-        const objectUrl = URL.createObjectURL(blob);
-        const img = new Image();
-        
-        img.onload = () => {
-          URL.revokeObjectURL(objectUrl);
-          console.log(`[Logo] Decoded: ${img.width}x${img.height}`);
+      const attemptDecode = (targetBlob: Blob): Promise<{ data: string, width: number, height: number } | null> => {
+        return new Promise((resolve) => {
+          const objectUrl = URL.createObjectURL(targetBlob);
+          const img = new Image();
           
-          try {
-            const canvas = document.createElement('canvas');
-            const maxDim = 1200;
-            let w = img.width;
-            let h = img.height;
+          img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            console.log(`[Logo] Decoded: ${img.width}x${img.height}`);
             
-            if (w > maxDim || h > maxDim) {
-              const ratio = w / h;
-              if (w > h) {
-                w = maxDim;
-                h = w / ratio;
-              } else {
-                h = maxDim;
-                w = h * ratio;
+            try {
+              const canvas = document.createElement('canvas');
+              const maxDim = 1200;
+              let w = img.width;
+              let h = img.height;
+              
+              if (w > maxDim || h > maxDim) {
+                const ratio = w / h;
+                if (w > h) {
+                  w = maxDim;
+                  h = w / ratio;
+                } else {
+                  h = maxDim;
+                  w = h * ratio;
+                }
+                console.log(`[Logo] Resizing to: ${Math.round(w)}x${Math.round(h)}`);
               }
-              console.log(`[Logo] Resizing to: ${Math.round(w)}x${Math.round(h)}`);
-            }
-            
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(img, 0, 0, w, h);
-              const data = canvas.toDataURL('image/png');
-              console.log(`[Logo] Success, data length: ${data.length}`);
-              resolve({ data, width: w, height: h });
-            } else {
+              
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, w, h);
+                const data = canvas.toDataURL('image/png');
+                resolve({ data, width: w, height: h });
+              } else {
+                resolve(null);
+              }
+            } catch (err) {
+              console.error('[Logo] Canvas error:', err);
               resolve(null);
             }
-          } catch (err) {
-            console.error('[Logo] Canvas error:', err);
+          };
+          
+          img.onerror = () => {
+            URL.revokeObjectURL(objectUrl);
             resolve(null);
+          };
+          
+          img.src = objectUrl;
+        });
+      };
+
+      // First attempt: direct decode
+      let result = await attemptDecode(blob);
+      if (result) return result;
+
+      // Second attempt: Smart Slicing (look for real image start)
+      console.log('[Logo] Direct decode failed, attempting Smart Slice...');
+      try {
+        const buffer = await blob.arrayBuffer();
+        const view = new Uint8Array(buffer);
+        
+        for (let i = 0; i < view.length - 4; i++) {
+          // JPEG Start: FF D8
+          if (view[i] === 0xFF && view[i+1] === 0xD8) {
+            console.log(`[Logo] Found JPEG start at offset ${i}`);
+            const sliced = new Blob([buffer.slice(i)], { type: 'image/jpeg' });
+            return await attemptDecode(sliced);
           }
-        };
-        
-        img.onerror = (err) => {
-          URL.revokeObjectURL(objectUrl);
-          console.error('[Logo] Decoding error (Image.onerror):', err);
-          resolve(null);
-        };
-        
-        img.src = objectUrl;
-      });
+          // PNG Start: 89 50 4E 47
+          if (view[i] === 0x89 && view[i+1] === 0x50 && view[i+2] === 0x4E && view[i+3] === 0x47) {
+            console.log(`[Logo] Found PNG start at offset ${i}`);
+            const sliced = new Blob([buffer.slice(i)], { type: 'image/png' });
+            return await attemptDecode(sliced);
+          }
+        }
+      } catch (err) {
+        console.error('[Logo] Smart Slice error:', err);
+      }
+
+      return null;
     };
 
     // 1. Try local logo
