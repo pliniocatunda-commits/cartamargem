@@ -88,15 +88,28 @@ export async function generateLetterPDF(
     const response = await fetch('/logo-ipme.png');
     if (response.ok) {
       const blob = await response.blob();
+      console.log(`Logo fetch result: type=${blob.type}, size=${blob.size} bytes`);
+      
       if (blob.size === 0) {
-        throw new Error('Logo file is empty (0 bytes)');
+        throw new Error('Logo file is empty (0 bytes). Please upload a valid image file.');
       }
       
       // Use a canvas to normalize the image format (handles corrupt/interlaced PNGs)
       logoData = await new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = 'anonymous';
+        
+        const objectUrl = URL.createObjectURL(blob);
+        
+        const timeout = setTimeout(() => {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error('Timeout loading image into browser (5s)'));
+        }, 5000);
+
         img.onload = () => {
+          clearTimeout(timeout);
+          URL.revokeObjectURL(objectUrl);
+          console.log(`Image loaded: ${img.width}x${img.height}`);
           try {
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
@@ -107,21 +120,21 @@ export async function generateLetterPDF(
               return;
             }
             ctx.drawImage(img, 0, 0);
-            // Convert to a high-quality JPEG or PNG that jsPDF likes
             const dataUrl = canvas.toDataURL('image/png');
             resolve(dataUrl);
           } catch (err) {
             reject(err);
           }
         };
-        img.onerror = () => reject(new Error('Failed to load image into browser for normalization'));
         
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          img.src = reader.result as string;
+        img.onerror = (err) => {
+          clearTimeout(timeout);
+          URL.revokeObjectURL(objectUrl);
+          console.error('Image object error details:', err);
+          reject(new Error('Failed to load image into browser. The file might be corrupted or in an invalid format.'));
         };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
+        
+        img.src = objectUrl;
       });
       console.log('Logo loaded and normalized successfully');
     } else {
