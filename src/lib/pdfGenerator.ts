@@ -105,14 +105,27 @@ export async function generateLetterPDF(
           
           if (header.startsWith('89 50 4E 47')) {
             console.log('Confirmed: Valid PNG signature.');
-          } else if (header.startsWith('FF D8 FF')) {
-            console.warn('Warning: This file is actually a JPEG, but named as .png.');
-          } else if (header.startsWith('25 50 44 46')) {
-            console.error('Error: This file is a PDF, not an image.');
-          } else if (header.startsWith('3C 73 76 67')) {
-            console.warn('Warning: This file is an SVG, but named as .png.');
           } else {
-            console.warn('Warning: Unknown file format. Does not match PNG signature.');
+            // If it's not a PNG, let's see if it's actually text (like an error message)
+            const textReader = new FileReader();
+            textReader.onload = (te) => {
+              const text = te.target?.result as string;
+              console.log('File content as text (first 100 chars):', text.substring(0, 100));
+              if (text.includes('<html') || text.includes('<!DOCTYPE')) {
+                console.error('DIAGNÓSTICO: O arquivo logo-ipme.png é na verdade uma página HTML (provavelmente um erro 404 disfarçado).');
+              }
+            };
+            textReader.readAsText(blob.slice(0, 100));
+            
+            if (header.startsWith('FF D8 FF')) {
+              console.warn('Warning: This file is actually a JPEG, but named as .png.');
+            } else if (header.startsWith('25 50 44 46')) {
+              console.error('Error: This file is a PDF, not an image.');
+            } else if (header.startsWith('3C 73 76 67')) {
+              console.warn('Warning: This file is an SVG, but named as .png.');
+            } else {
+              console.warn('Warning: Unknown file format. Does not match PNG signature.');
+            }
           }
         };
         checkReader.readAsArrayBuffer(blob.slice(0, 16));
