@@ -90,98 +90,86 @@ export async function generateLetterPDF(
   try {
     const fetchLogo = async (url: string) => {
       try {
-        const response = await fetch(url);
-        if (!response.ok) return null;
-        const blob = await response.blob();
-        console.log(`Logo fetch from ${url}: size=${blob.size} bytes, type=${blob.type}`);
-        if (blob.size === 0) {
-          console.warn(`Logo file at ${url} is empty (0 bytes).`);
+        console.log(`[Logo] Fetching: ${url}`);
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) {
+          console.error(`[Logo] Failed to fetch ${url}: ${response.status} ${response.statusText}`);
           return null;
         }
+        const blob = await response.blob();
+        console.log(`[Logo] Fetched: ${blob.size} bytes, type: ${blob.type}`);
         return blob;
       } catch (err) {
-        console.error(`Error fetching logo from ${url}:`, err);
+        console.error(`[Logo] Error fetching ${url}:`, err);
         return null;
       }
     };
 
-    let blob = null;
-    // Prefer local logo as the user just uploaded a "treated" version
-    blob = await fetchLogo(LOCAL_LOGO_URL);
-    if (!blob && EXTERNAL_LOGO_URL) {
+    let blob = await fetchLogo(`${window.location.origin}/logo-ipme.png`);
+    if (!blob) {
+      console.log('[Logo] Local fetch failed, trying external URL...');
       blob = await fetchLogo(EXTERNAL_LOGO_URL);
     }
 
     if (blob) {
-      const logoInfo = await new Promise<{ data: string, width: number, height: number } | null>((resolve) => {
-        // Diagnostic: Check file signature
-        const signatureReader = new FileReader();
-        signatureReader.onload = (e) => {
-          const arr = new Uint8Array(e.target?.result as ArrayBuffer);
-          const hex = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join(' ').toUpperCase();
-          console.log(`Logo Signature (first 8 bytes): ${hex}`);
-          
-          if (hex.startsWith('89 50 4E 47')) {
-            console.log('Confirmed: Valid PNG signature found.');
-          } else if (hex.startsWith('FF D8 FF')) {
-            console.warn('Detected: This is actually a JPEG file.');
-          } else if (hex.startsWith('3C 21 44 4F') || hex.startsWith('3C 68 74 6D')) {
-            console.error('Detected: This is an HTML page, not an image! (Likely a GitHub error page)');
-          }
-        };
-        signatureReader.readAsArrayBuffer(blob.slice(0, 8));
-
+      logoData = await new Promise<string | null>((resolve) => {
         const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64data = reader.result as string;
-          const img = new Image();
+        reader.onload = () => {
+          const base64 = reader.result as string;
           
-          const timeout = setTimeout(() => {
-            console.warn('Logo decoding timed out (5s)');
-            resolve(null);
-          }, 5000);
-
+          // Detect actual format from base64 data
+          // JPEG starts with /9j/ in base64
+          const isJpeg = base64.includes('/9j/') || base64.includes('JFIF');
+          console.log(`[Logo] Base64 loaded, detected as ${isJpeg ? 'JPEG' : 'PNG'}`);
+          
+          const img = new Image();
           img.onload = () => {
-            clearTimeout(timeout);
-            console.log(`Logo decoded successfully: ${img.width}x${img.height}`);
+            console.log(`[Logo] Decoded: ${img.width}x${img.height}`);
+            (doc as any)._logoWidth = img.width;
+            (doc as any)._logoHeight = img.height;
+            
             try {
               const canvas = document.createElement('canvas');
-              canvas.width = img.width;
-              canvas.height = img.height;
+              // Limit size to avoid memory issues with huge images
+              const maxDim = 1200;
+              let w = img.width;
+              let h = img.height;
+              if (w > maxDim || h > maxDim) {
+                const ratio = w / h;
+                if (w > h) {
+                  w = maxDim;
+                  h = w / ratio;
+                } else {
+                  h = maxDim;
+                  w = h * ratio;
+                }
+                console.log(`[Logo] Resizing to: ${Math.round(w)}x${Math.round(h)}`);
+              }
+              
+              canvas.width = w;
+              canvas.height = h;
               const ctx = canvas.getContext('2d');
               if (ctx) {
-                ctx.drawImage(img, 0, 0);
-                resolve({
-                  data: canvas.toDataURL('image/png'),
-                  width: img.width,
-                  height: img.height
-                });
+                ctx.drawImage(img, 0, 0, w, h);
+                const data = canvas.toDataURL('image/png');
+                console.log(`[Logo] Canvas conversion success, data length: ${data.length}`);
+                resolve(data);
               } else {
-                resolve(null);
+                resolve(base64);
               }
-            } catch (e) {
-              console.error('Canvas processing error:', e);
-              resolve(null);
+            } catch (err) {
+              console.error('[Logo] Canvas error:', err);
+              resolve(base64);
             }
           };
-          
           img.onerror = (err) => {
-            clearTimeout(timeout);
-            console.error('Browser failed to decode the logo image from DataURL:', err);
+            console.error('[Logo] Decoding error:', err);
             resolve(null);
           };
-          
-          img.src = base64data;
+          img.src = base64;
         };
         reader.readAsDataURL(blob);
       });
-      
-      if (logoInfo) {
-        logoData = logoInfo.data;
-        // Store dimensions globally for drawHeader
-        (doc as any)._logoWidth = logoInfo.width;
-        (doc as any)._logoHeight = logoInfo.height;
-      }
     }
   } catch (e) {
     console.warn('Silent logo load failure:', e);
@@ -218,7 +206,7 @@ export async function generateLetterPDF(
         }
         
         const x = (210 - targetWidth) / 2;
-        doc.addImage(logoData, 'PNG', x, 5, targetWidth, targetHeight);
+        doc.addImage(logoData, 'PNG', x, 5, targetWidth, targetHeight, undefined, 'FAST');
         return; // Success
       } catch (e) {
         console.error('Error adding logo to PDF, using fallback:', e);
