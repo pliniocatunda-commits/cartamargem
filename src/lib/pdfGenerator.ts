@@ -96,20 +96,32 @@ export async function generateLetterPDF(
       
       // Use a canvas to normalize the image format (handles corrupt/interlaced PNGs)
       logoData = await new Promise((resolve, reject) => {
+        // Check if it's actually a PNG by looking at the first 4 bytes (Magic Number)
+        const checkReader = new FileReader();
+        checkReader.onload = (e) => {
+          const arr = new Uint8Array(e.target?.result as ArrayBuffer);
+          const header = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join(' ').toUpperCase();
+          console.log(`File Header (Hex): ${header}`);
+          if (header !== '89 50 4E 47') {
+            console.warn('Warning: File does not have a valid PNG signature (89 50 4E 47).');
+          }
+        };
+        checkReader.readAsArrayBuffer(blob.slice(0, 4));
+
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        // Removed crossOrigin as it's a local file and can cause issues in some environments
         
         const objectUrl = URL.createObjectURL(blob);
         
         const timeout = setTimeout(() => {
           URL.revokeObjectURL(objectUrl);
-          reject(new Error('Timeout loading image into browser (5s)'));
+          reject(new Error('Timeout loading image (5s)'));
         }, 5000);
 
         img.onload = () => {
           clearTimeout(timeout);
           URL.revokeObjectURL(objectUrl);
-          console.log(`Image loaded: ${img.width}x${img.height}`);
+          console.log(`Image decoded successfully: ${img.width}x${img.height}`);
           try {
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
@@ -130,8 +142,8 @@ export async function generateLetterPDF(
         img.onerror = (err) => {
           clearTimeout(timeout);
           URL.revokeObjectURL(objectUrl);
-          console.error('Image object error details:', err);
-          reject(new Error('Failed to load image into browser. The file might be corrupted or in an invalid format.'));
+          console.error('Browser failed to decode the image file.');
+          reject(new Error('O arquivo logo-ipme.png não parece ser uma imagem válida ou está corrompido. Certifique-se de que é um arquivo PNG real.'));
         };
         
         img.src = objectUrl;
