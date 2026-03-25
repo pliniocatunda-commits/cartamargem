@@ -105,71 +105,75 @@ export async function generateLetterPDF(
       }
     };
 
-    let blob = await fetchLogo(`${window.location.origin}/logo-ipme.png`);
-    if (!blob) {
-      console.log('[Logo] Local fetch failed, trying external URL...');
-      blob = await fetchLogo(EXTERNAL_LOGO_URL);
+    const decodeLogo = async (blob: Blob): Promise<{ data: string, width: number, height: number } | null> => {
+      return new Promise((resolve) => {
+        const objectUrl = URL.createObjectURL(blob);
+        const img = new Image();
+        
+        img.onload = () => {
+          URL.revokeObjectURL(objectUrl);
+          console.log(`[Logo] Decoded: ${img.width}x${img.height}`);
+          
+          try {
+            const canvas = document.createElement('canvas');
+            const maxDim = 1200;
+            let w = img.width;
+            let h = img.height;
+            
+            if (w > maxDim || h > maxDim) {
+              const ratio = w / h;
+              if (w > h) {
+                w = maxDim;
+                h = w / ratio;
+              } else {
+                h = maxDim;
+                w = h * ratio;
+              }
+              console.log(`[Logo] Resizing to: ${Math.round(w)}x${Math.round(h)}`);
+            }
+            
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, w, h);
+              const data = canvas.toDataURL('image/png');
+              console.log(`[Logo] Success, data length: ${data.length}`);
+              resolve({ data, width: w, height: h });
+            } else {
+              resolve(null);
+            }
+          } catch (err) {
+            console.error('[Logo] Canvas error:', err);
+            resolve(null);
+          }
+        };
+        
+        img.onerror = (err) => {
+          URL.revokeObjectURL(objectUrl);
+          console.error('[Logo] Decoding error (Image.onerror):', err);
+          resolve(null);
+        };
+        
+        img.src = objectUrl;
+      });
+    };
+
+    // 1. Try local logo
+    let logoBlob = await fetchLogo(`${window.location.origin}/logo-ipme.png`);
+    let decoded = logoBlob ? await decodeLogo(logoBlob) : null;
+
+    // 2. Fallback to external logo if local fails (fetch or decode)
+    if (!decoded) {
+      console.log('[Logo] Local logo failed (fetch or decode), trying external URL...');
+      logoBlob = await fetchLogo(EXTERNAL_LOGO_URL);
+      decoded = logoBlob ? await decodeLogo(logoBlob) : null;
     }
 
-    if (blob) {
-      logoData = await new Promise<string | null>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64 = reader.result as string;
-          
-          // Detect actual format from base64 data
-          // JPEG starts with /9j/ in base64
-          const isJpeg = base64.includes('/9j/') || base64.includes('JFIF');
-          console.log(`[Logo] Base64 loaded, detected as ${isJpeg ? 'JPEG' : 'PNG'}`);
-          
-          const img = new Image();
-          img.onload = () => {
-            console.log(`[Logo] Decoded: ${img.width}x${img.height}`);
-            (doc as any)._logoWidth = img.width;
-            (doc as any)._logoHeight = img.height;
-            
-            try {
-              const canvas = document.createElement('canvas');
-              // Limit size to avoid memory issues with huge images
-              const maxDim = 1200;
-              let w = img.width;
-              let h = img.height;
-              if (w > maxDim || h > maxDim) {
-                const ratio = w / h;
-                if (w > h) {
-                  w = maxDim;
-                  h = w / ratio;
-                } else {
-                  h = maxDim;
-                  w = h * ratio;
-                }
-                console.log(`[Logo] Resizing to: ${Math.round(w)}x${Math.round(h)}`);
-              }
-              
-              canvas.width = w;
-              canvas.height = h;
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.drawImage(img, 0, 0, w, h);
-                const data = canvas.toDataURL('image/png');
-                console.log(`[Logo] Canvas conversion success, data length: ${data.length}`);
-                resolve(data);
-              } else {
-                resolve(base64);
-              }
-            } catch (err) {
-              console.error('[Logo] Canvas error:', err);
-              resolve(base64);
-            }
-          };
-          img.onerror = (err) => {
-            console.error('[Logo] Decoding error:', err);
-            resolve(null);
-          };
-          img.src = base64;
-        };
-        reader.readAsDataURL(blob);
-      });
+    if (decoded) {
+      logoData = decoded.data;
+      (doc as any)._logoWidth = decoded.width;
+      (doc as any)._logoHeight = decoded.height;
     }
   } catch (e) {
     console.warn('Silent logo load failure:', e);
