@@ -206,8 +206,8 @@ export async function generateLetterPDF(
         const originalHeight = (doc as any)._logoHeight || 30;
         const ratio = originalWidth / originalHeight;
         
-        const maxWidth = 60;
-        const maxHeight = 30;
+        const maxWidth = 80; // Increased from 60
+        const maxHeight = 40; // Increased from 30
         
         let targetWidth = maxWidth;
         let targetHeight = targetWidth / ratio;
@@ -218,7 +218,7 @@ export async function generateLetterPDF(
         }
         
         const x = (210 - targetWidth) / 2;
-        doc.addImage(logoData, 'PNG', x, 10, targetWidth, targetHeight);
+        doc.addImage(logoData, 'PNG', x, 5, targetWidth, targetHeight);
         return; // Success
       } catch (e) {
         console.error('Error adding logo to PDF, using fallback:', e);
@@ -230,42 +230,42 @@ export async function generateLetterPDF(
     // Colorful figures (circles/heads)
     doc.setDrawColor(0);
     doc.setFillColor(0, 180, 0); // Green
-    doc.circle(92, 18, 1.5, 'F');
+    doc.circle(92, 13, 1.5, 'F');
     doc.setFillColor(255, 230, 0); // Yellow
-    doc.circle(98, 15, 1.5, 'F');
+    doc.circle(98, 10, 1.5, 'F');
     doc.setFillColor(0, 200, 220); // Cyan
-    doc.circle(105, 15, 1.5, 'F');
+    doc.circle(105, 10, 1.5, 'F');
     doc.setFillColor(0, 0, 120); // Dark Blue
-    doc.circle(112, 18, 1.5, 'F');
+    doc.circle(112, 13, 1.5, 'F');
     doc.setFillColor(230, 0, 0); // Red
-    doc.circle(118, 22, 1.5, 'F');
+    doc.circle(118, 17, 1.5, 'F');
     
     // Arches (bodies)
     doc.setLineWidth(0.8);
-    doc.setDrawColor(0, 180, 0); doc.line(90, 23, 94, 20);
-    doc.setDrawColor(255, 230, 0); doc.line(96, 20, 100, 17);
-    doc.setDrawColor(0, 200, 220); doc.line(103, 17, 107, 20);
-    doc.setDrawColor(0, 0, 120); doc.line(110, 20, 114, 23);
+    doc.setDrawColor(0, 180, 0); doc.line(90, 18, 94, 15);
+    doc.setDrawColor(255, 230, 0); doc.line(96, 15, 100, 12);
+    doc.setDrawColor(0, 200, 220); doc.line(103, 12, 107, 15);
+    doc.setDrawColor(0, 0, 120); doc.line(110, 15, 114, 18);
     
     doc.setFont('times', 'bold');
     doc.setFontSize(26);
     doc.setTextColor(0, 40, 100); 
-    doc.text('IPME', 105, 28, { align: 'center' });
+    doc.text('IPME', 105, 23, { align: 'center' });
 
     doc.setFontSize(9);
     doc.setTextColor(0, 40, 100);
     doc.setFont('times', 'italic');
-    doc.text('INSTITUTO DE PREVIDÊNCIA', 105, 33, { align: 'center' });
-    doc.text('DO MUNICÍPIO DE EUSÉBIO', 105, 37, { align: 'center' });
+    doc.text('INSTITUTO DE PREVIDÊNCIA', 105, 28, { align: 'center' });
+    doc.text('DO MUNICÍPIO DE EUSÉBIO', 105, 32, { align: 'center' });
   };
 
   const drawFooter = (doc: jsPDF) => {
     doc.setFontSize(8);
     doc.setTextColor(0, 50, 150); // BLUE footer as requested
-    doc.text('INSTITUTO DE PREVIDÊNCIA DOS SERVIDORES PÚBLICOS MUNICIPAIS DE EUSÉBIO', 105, 275, { align: 'center' });
-    doc.text('AV. CORONEL CÍCERO SÁ, 498, CENTRO, CEP: 61760435', 105, 280, { align: 'center' });
-    doc.text('CNPJ: 04.865.123/0001-46', 105, 285, { align: 'center' });
-    doc.text('TEL: (85) 9.8159-6242 | 9.8150-7797 | 9.8159-7140', 105, 290, { align: 'center' });
+    doc.text('INSTITUTO DE PREVIDÊNCIA DOS SERVIDORES PÚBLICOS MUNICIPAIS DE EUSÉBIO', 105, 267, { align: 'center' });
+    doc.text('AV. CORONEL CÍCERO SÁ, 498, CENTRO, CEP: 61760435', 105, 272, { align: 'center' });
+    doc.text('CNPJ: 04.865.123/0001-46', 105, 277, { align: 'center' });
+    doc.text('TEL: (85) 9.8159-6242 | 9.8150-7797 | 9.8159-7140', 105, 282, { align: 'center' });
   };
 
   // --- PAGE 1: COMUNICADO ---
@@ -274,16 +274,16 @@ export async function generateLetterPDF(
   doc.setFontSize(16);
   doc.setFont('times', 'bold');
   doc.setTextColor(0);
-  doc.text('COMUNICADO', 105, 70, { align: 'center' });
+  doc.text('COMUNICADO', 105, 65, { align: 'center' });
 
   doc.setFontSize(11);
   doc.setFont('times', 'normal');
-  doc.text(dateStr, 190, 85, { align: 'right' });
+  doc.text(dateStr, 190, 80, { align: 'right' });
 
   doc.setFont('times', 'bold');
-  doc.text('Assunto: Solicitação de Informação de relativos Empréstimos Consignados', 20, 105);
+  doc.text('Assunto: Solicitação de Informação de relativos Empréstimos Consignados', 20, 100);
   
-  doc.text(`Ao Ilmo.(a) Sr.(a) Gerente Desta Instituição Bancária (${getBankFullName(bank)})`, 20, 120);
+  doc.text(`Ao Ilmo.(a) Sr.(a) Gerente Desta Instituição Bancária (${getBankFullName(bank)})`, 20, 115);
 
   doc.setFont('times', 'normal');
   const comunicadoPart1 = `Cumprimentando-o(a) cordialmente, venho através deste, SOLICITAR que, caso sejam concretizadas renovação, renegociação ou reparcelamento de empréstimos consignados por meio da Carta-Margem a que este comunicado se anexa, seja informado de imediato ao Instituto de Previdência do Município de Eusébio - IPME, pelo endereço de e-mail que segue: mikaely.vieira@ipmeusebio.ce.gov.br`;
@@ -291,11 +291,11 @@ export async function generateLetterPDF(
   const comunicadoPart2 = `A motivação dessa solicitação se dá em virtude de manter o controle necessário para emissão de Cartas-Margens aos segurados, uma vez que as consignações ainda são manuais e de que tal conduta permite uma melhor aplicação da lei pertinente. Visando evitar qualquer eventualidade, reforçamos a cooperação da Instituição Bancária em favor deste Instituto de Previdência.`;
 
   // Render paragraphs separately to avoid justification issues with newlines
-  doc.text(comunicadoPart1, 20, 130, { align: 'justify', maxWidth: 170 });
+  doc.text(comunicadoPart1, 20, 125, { align: 'justify', maxWidth: 170 });
   
   // Calculate height of first paragraph to position the second one
   const dims1 = doc.getTextDimensions(comunicadoPart1, { maxWidth: 170 });
-  const nextY = 130 + dims1.h + 8; // 8 units for a clear blank line
+  const nextY = 125 + dims1.h + 8; // 8 units for a clear blank line
   
   doc.text(comunicadoPart2, 20, nextY, { align: 'justify', maxWidth: 170 });
 
@@ -343,7 +343,7 @@ export async function generateLetterPDF(
   const introText = `O INSTITUTO DE PREVIDÊNCIA DO MUNICÍPIO DE EUSÉBIO, CNPJ nº 04.865.123/0001-46, vem por meio desta informar os dados abaixo para fins de concessão de empréstimo consignado em folha de pagamentos.`;
   doc.text(introText, 20, 85, { align: 'justify', maxWidth: 170 });
 
-  let y = 105;
+  let y = 100; // Reverted from 85/90
   const bondName = data.bondType === '05' ? 'PENSIONISTA' : 'APOSENTADO(A)';
   const bondLabel = data.bondType === '05' ? 'PENSIONISTA' : 'APOSENTADO(A)';
   const article = 'o(a)';
@@ -353,53 +353,53 @@ export async function generateLetterPDF(
   doc.text('NOME:', 20, y);
   doc.setFont('times', 'normal');
   doc.text(data.serverName.toUpperCase(), 60, y);
-  y += 6;
+  y += 6; // Reverted from 5
 
   doc.setFont('times', 'bold');
   doc.text('CPF:', 20, y);
   doc.setFont('times', 'normal');
   doc.text(data.cpf || '---', 60, y);
-  y += 6;
+  y += 6; // Reverted from 5
 
   doc.setFont('times', 'bold');
   doc.text('ESPÉCIE DE VÍNCULO:', 20, y);
   doc.setFont('times', 'normal');
   doc.text(bondLabel, 70, y);
-  y += 6;
+  y += 6; // Reverted from 5
 
   doc.setFont('times', 'bold');
   doc.text('ADMISSÃO:', 20, y);
   doc.setFont('times', 'normal');
   doc.text(data.admissionDate || '---', 60, y);
-  y += 6;
+  y += 6; // Reverted from 5
 
   doc.setFont('times', 'bold');
   doc.text('MATRÍCULA FUNCIONAL:', 20, y);
   doc.setFont('times', 'normal');
   doc.text(data.registration, 75, y);
-  y += 6;
+  y += 6; // Reverted from 5
 
   doc.setFont('times', 'bold');
   doc.text('VALOR LEGALMENTE DISPONÍVEL DE PARCELA:', 20, y);
-  y += 8;
+  y += 8; // Reverted from 6
 
   doc.setFont('times', 'normal');
   doc.text(`- Para crédito novo: R$ ${formatCurrency(availableMargin).replace('R$', '').trim()} ( ${numberToWords(availableMargin)} )`, 30, y);
-  y += 6;
+  y += 6; // Reverted from 5
   doc.text(`- Para renovação : R$ ${formatCurrency(result.renewalMargin).replace('R$', '').trim()} ( ${numberToWords(result.renewalMargin)} )`, 30, y);
-  y += 12;
+  y += 12; // Reverted from 10
 
   const bodyPart1 = `Esta proposta - por parte ${article} ${bondName.toLowerCase()} - permanecerá válida por 30 dias e este Ente Administrativo se compromete a realizar a averbação (consignação) e operar os descontos das parcelas após a confirmação da contratação do empréstimo e das parcelas pelo ${getBankFullName(bank)}, por meio da troca de arquivos eletrônicos.`;
   
   const bodyPart2 = `${Article} ${bondName.toLowerCase()} também autoriza expressamente, de forma irretratável e irrevogável, o desconto dos valores em seus proventos pelo INSTITUTO DE PREVIDÊNCIA DO MUNICÍPIO DE EUSÉBIO correspondente à parcela do empréstimo consignado concedido pelo ${getBankFullName(bank)}, conforme firmado entre a Instituição Bancária e ${article} ${bondName.toLowerCase()}.`;
   
   doc.text(bodyPart1, 20, y, { align: 'justify', maxWidth: 170 });
-  y += 20;
+  y += 20; // Reverted from 16/18
   doc.text(bodyPart2, 20, y, { align: 'justify', maxWidth: 170 });
-  y += 30;
+  y += 30; // Reverted from 20/25
 
   doc.text(dateStr, 105, y, { align: 'center' });
-  y += 25;
+  y += 25; // Reverted from 15/20
 
   // Signatures
   doc.setTextColor(0);
