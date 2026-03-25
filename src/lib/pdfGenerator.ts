@@ -82,138 +82,70 @@ export async function generateLetterPDF(
   console.log('jsPDF instance created');
   
   // CONFIGURAÇÃO DO LOGOTIPO: 
-  // Se o upload local falhar, você pode colar o link direto do GitHub (Raw) aqui:
   const EXTERNAL_LOGO_URL = 'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png';
   const LOCAL_LOGO_URL = '/logo-ipme.png';
   
-  // Load logo as base64 for better reliability in jsPDF
   let logoData: string | null = null;
   
-  const fetchLogo = async (url: string) => {
-    console.log(`Attempting to fetch logo from: ${url}`);
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const blob = await response.blob();
-    if (blob.size === 0) throw new Error('File is empty (0 bytes)');
-    return blob;
-  };
-
   try {
-    let blob;
-    try {
-      // Tenta primeiro a URL externa se estiver preenchida
-      if (EXTERNAL_LOGO_URL) {
-        blob = await fetchLogo(EXTERNAL_LOGO_URL);
-      } else {
-        blob = await fetchLogo(LOCAL_LOGO_URL);
-      }
-    } catch (e) {
-      console.warn('Primary logo fetch failed, trying local fallback...', e);
-      if (EXTERNAL_LOGO_URL) {
-        blob = await fetchLogo(LOCAL_LOGO_URL);
-      } else {
-        throw e;
-      }
+    const fetchLogo = async (url: string) => {
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const blob = await response.blob();
+      if (blob.size === 0) return null;
+      return blob;
+    };
+
+    let blob = null;
+    if (EXTERNAL_LOGO_URL) {
+      blob = await fetchLogo(EXTERNAL_LOGO_URL);
+    }
+    if (!blob) {
+      blob = await fetchLogo(LOCAL_LOGO_URL);
     }
 
-    console.log(`Logo blob received: type=${blob.type}, size=${blob.size} bytes`);
-    
-    // Use a canvas to normalize the image format
-    logoData = await new Promise((resolve, reject) => {
-        // Check the file signature (Magic Number) to identify the true format
-        const checkReader = new FileReader();
-        checkReader.onload = (e) => {
-          const arr = new Uint8Array(e.target?.result as ArrayBuffer);
-          const header = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join(' ').toUpperCase();
-          console.log(`File Header (First 16 bytes): ${header}`);
-          
-          if (header.startsWith('89 50 4E 47')) {
-            console.log('Confirmed: Valid PNG signature.');
-          } else {
-            // If it's not a PNG, let's see if it's actually text (like an error message)
-            const textReader = new FileReader();
-            textReader.onload = (te) => {
-              const text = te.target?.result as string;
-              console.log('File content as text (first 100 chars):', text.substring(0, 100));
-              
-              // Check if the text file actually contains a Base64 string (common workaround for broken binary uploads)
-              const trimmedText = text.trim();
-              if (trimmedText.startsWith('data:image/') || /^[a-zA-Z0-9+/=]{50,}/.test(trimmedText.substring(0, 200))) {
-                console.log('DIAGNÓSTICO: O arquivo contém uma string Base64. Tentando processar...');
-                const dataUrl = trimmedText.startsWith('data:image/') ? trimmedText : `data:image/png;base64,${trimmedText}`;
-                
-                // Try to validate this dataUrl by loading it into an image
-                const testImg = new Image();
-                testImg.onload = () => {
-                  console.log('Base64 logo decoded successfully via text fallback');
-                  resolve(dataUrl);
-                };
-                testImg.onerror = () => {
-                  console.error('Failed to decode Base64 string from text file');
-                  reject(new Error('O conteúdo do arquivo não é uma imagem válida nem um Base64 correto.'));
-                };
-                testImg.src = dataUrl;
-                return;
-              }
-
-              if (text.includes('<html') || text.includes('<!DOCTYPE')) {
-                console.error('DIAGNÓSTICO: O arquivo logo-ipme.png é na verdade uma página HTML (erro 404).');
-                reject(new Error('O servidor retornou uma página de erro em vez da imagem. Verifique se o arquivo existe na pasta public.'));
-              } else {
-                reject(new Error('O arquivo não é uma imagem válida.'));
-              }
-            };
-            textReader.readAsText(blob);
-            return; // Don't proceed to img.src yet
-          }
-        };
-        checkReader.readAsArrayBuffer(blob.slice(0, 16));
-
+    if (blob) {
+      logoData = await new Promise((resolve) => {
         const img = new Image();
-        // Removed crossOrigin as it's a local file and can cause issues in some environments
-        
         const objectUrl = URL.createObjectURL(blob);
         
         const timeout = setTimeout(() => {
           URL.revokeObjectURL(objectUrl);
-          reject(new Error('Timeout loading image (5s)'));
-        }, 5000);
+          resolve(null);
+        }, 3000);
 
         img.onload = () => {
           clearTimeout(timeout);
           URL.revokeObjectURL(objectUrl);
-          console.log(`Image decoded successfully: ${img.width}x${img.height}`);
           try {
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
             canvas.height = img.height;
             const ctx = canvas.getContext('2d');
-            if (!ctx) {
-              reject(new Error('Could not get canvas context'));
-              return;
+            if (ctx) {
+              ctx.drawImage(img, 0, 0);
+              resolve(canvas.toDataURL('image/png'));
+            } else {
+              resolve(null);
             }
-            ctx.drawImage(img, 0, 0);
-            const dataUrl = canvas.toDataURL('image/png');
-            resolve(dataUrl);
-          } catch (err) {
-            reject(err);
+          } catch (e) {
+            resolve(null);
           }
         };
         
-        img.onerror = (err) => {
+        img.onerror = () => {
           clearTimeout(timeout);
           URL.revokeObjectURL(objectUrl);
-          console.error('Browser failed to decode the image file.');
-          reject(new Error('O arquivo logo-ipme.png não parece ser uma imagem válida ou está corrompido. Certifique-se de que é um arquivo PNG real.'));
+          resolve(null);
         };
         
         img.src = objectUrl;
       });
-      console.log('Logo loaded and normalized successfully');
-    } catch (e) {
-      console.error('Error loading logo:', e);
-      logoData = null; // Ensure it's null if loading fails
     }
+  } catch (e) {
+    console.warn('Silent logo load failure:', e);
+    logoData = null;
+  }
 
   const date = new Date();
   const day = String(date.getDate()).padStart(2, '0');
