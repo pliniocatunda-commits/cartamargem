@@ -77,6 +77,7 @@ export async function generateLetterPDF(
   result: CalculationResult,
   signatory: Signatory
 ) {
+  console.log('Generating PDF for:', data.serverName);
   const doc = new jsPDF();
   
   // Load logo as base64 for better reliability in jsPDF
@@ -176,20 +177,28 @@ export async function generateLetterPDF(
   
   const comunicadoPart2 = `A motivação dessa solicitação se dá em virtude de manter o controle necessário para emissão de Cartas-Margens aos segurados, uma vez que as consignações ainda são manuais e de que tal conduta permite uma melhor aplicação da lei pertinente. Visando evitar qualquer eventualidade, reforçamos a cooperação da Instituição Bancária em favor deste Instituto de Previdência.`;
 
-  // Combined text to remove extra spacing between paragraphs
-  const comunicadoFull = comunicadoPart1 + "\n" + comunicadoPart2;
-  doc.text(comunicadoFull, 20, 130, { align: 'justify', maxWidth: 170, lineHeightFactor: 1.1 });
+  // Render paragraphs separately to avoid justification issues with newlines
+  doc.text(comunicadoPart1, 20, 130, { align: 'justify', maxWidth: 170 });
+  
+  // Calculate height of first paragraph to position the second one
+  const dims1 = doc.getTextDimensions(comunicadoPart1, { maxWidth: 170 });
+  const nextY = 130 + dims1.h + 8; // 8 units for a clear blank line
+  
+  doc.text(comunicadoPart2, 20, nextY, { align: 'justify', maxWidth: 170 });
 
-  doc.text('No ensejo, renovo os votos de estima e consideração.', 20, 175);
+  const dims2 = doc.getTextDimensions(comunicadoPart2, { maxWidth: 170 });
+  const finalY = nextY + dims2.h + 10;
+  doc.text('No ensejo, renovo os votos de estima e consideração.', 20, finalY);
 
+  const sigY = Math.max(210, finalY + 25);
   doc.setTextColor(0);
-  doc.text('_________________________________________________', 105, 210, { align: 'center' });
+  doc.text('_________________________________________________', 105, sigY, { align: 'center' });
   doc.setFont('times', 'bold');
-  doc.text(signatory.name, 105, 216, { align: 'center' });
+  doc.text(signatory.name, 105, sigY + 6, { align: 'center' });
   doc.setFont('times', 'normal');
-  doc.text(`Matrícula ${signatory.registration}`, 105, 222, { align: 'center' });
+  doc.text(`Matrícula ${signatory.registration}`, 105, sigY + 12, { align: 'center' });
   doc.setFont('times', 'bold');
-  doc.text(signatory.position, 105, 228, { align: 'center' });
+  doc.text(signatory.position, 105, sigY + 18, { align: 'center' });
 
   drawFooter(doc);
 

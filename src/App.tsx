@@ -816,8 +816,10 @@ export default function App() {
                   </button>
                   <button
                     onClick={async () => {
+                      console.log('Download button clicked');
                       try {
                         await generateLetterPDF(selectedBank, paystubData, calculation, signatory);
+                        console.log('PDF generation successful');
                       } catch (error) {
                         console.error('Error generating PDF:', error);
                       }
