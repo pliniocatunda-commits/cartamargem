@@ -111,21 +111,36 @@ export async function generateLetterPDF(
             textReader.onload = (te) => {
               const text = te.target?.result as string;
               console.log('File content as text (first 100 chars):', text.substring(0, 100));
+              
+              // Check if the text file actually contains a Base64 string (common workaround for broken binary uploads)
+              const trimmedText = text.trim();
+              if (trimmedText.startsWith('data:image/') || /^[a-zA-Z0-9+/=]{50,}/.test(trimmedText.substring(0, 200))) {
+                console.log('DIAGNÓSTICO: O arquivo contém uma string Base64. Tentando processar...');
+                const dataUrl = trimmedText.startsWith('data:image/') ? trimmedText : `data:image/png;base64,${trimmedText}`;
+                
+                // Try to validate this dataUrl by loading it into an image
+                const testImg = new Image();
+                testImg.onload = () => {
+                  console.log('Base64 logo decoded successfully via text fallback');
+                  resolve(dataUrl);
+                };
+                testImg.onerror = () => {
+                  console.error('Failed to decode Base64 string from text file');
+                  reject(new Error('O conteúdo do arquivo não é uma imagem válida nem um Base64 correto.'));
+                };
+                testImg.src = dataUrl;
+                return;
+              }
+
               if (text.includes('<html') || text.includes('<!DOCTYPE')) {
-                console.error('DIAGNÓSTICO: O arquivo logo-ipme.png é na verdade uma página HTML (provavelmente um erro 404 disfarçado).');
+                console.error('DIAGNÓSTICO: O arquivo logo-ipme.png é na verdade uma página HTML (erro 404).');
+                reject(new Error('O servidor retornou uma página de erro em vez da imagem. Verifique se o arquivo existe na pasta public.'));
+              } else {
+                reject(new Error('O arquivo não é uma imagem válida.'));
               }
             };
-            textReader.readAsText(blob.slice(0, 100));
-            
-            if (header.startsWith('FF D8 FF')) {
-              console.warn('Warning: This file is actually a JPEG, but named as .png.');
-            } else if (header.startsWith('25 50 44 46')) {
-              console.error('Error: This file is a PDF, not an image.');
-            } else if (header.startsWith('3C 73 76 67')) {
-              console.warn('Warning: This file is an SVG, but named as .png.');
-            } else {
-              console.warn('Warning: Unknown file format. Does not match PNG signature.');
-            }
+            textReader.readAsText(blob);
+            return; // Don't proceed to img.src yet
           }
         };
         checkReader.readAsArrayBuffer(blob.slice(0, 16));
