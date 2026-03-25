@@ -96,17 +96,26 @@ export async function generateLetterPDF(
       
       // Use a canvas to normalize the image format (handles corrupt/interlaced PNGs)
       logoData = await new Promise((resolve, reject) => {
-        // Check if it's actually a PNG by looking at the first 4 bytes (Magic Number)
+        // Check the file signature (Magic Number) to identify the true format
         const checkReader = new FileReader();
         checkReader.onload = (e) => {
           const arr = new Uint8Array(e.target?.result as ArrayBuffer);
           const header = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join(' ').toUpperCase();
-          console.log(`File Header (Hex): ${header}`);
-          if (header !== '89 50 4E 47') {
-            console.warn('Warning: File does not have a valid PNG signature (89 50 4E 47).');
+          console.log(`File Header (First 16 bytes): ${header}`);
+          
+          if (header.startsWith('89 50 4E 47')) {
+            console.log('Confirmed: Valid PNG signature.');
+          } else if (header.startsWith('FF D8 FF')) {
+            console.warn('Warning: This file is actually a JPEG, but named as .png.');
+          } else if (header.startsWith('25 50 44 46')) {
+            console.error('Error: This file is a PDF, not an image.');
+          } else if (header.startsWith('3C 73 76 67')) {
+            console.warn('Warning: This file is an SVG, but named as .png.');
+          } else {
+            console.warn('Warning: Unknown file format. Does not match PNG signature.');
           }
         };
-        checkReader.readAsArrayBuffer(blob.slice(0, 4));
+        checkReader.readAsArrayBuffer(blob.slice(0, 16));
 
         const img = new Image();
         // Removed crossOrigin as it's a local file and can cause issues in some environments
