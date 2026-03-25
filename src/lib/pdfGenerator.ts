@@ -115,49 +115,62 @@ export async function generateLetterPDF(
 
     if (blob) {
       logoData = await new Promise((resolve) => {
-        // Force image type if served as generic octet-stream
-        const imageBlob = blob.type === 'application/octet-stream' 
-          ? new Blob([blob], { type: 'image/png' }) 
-          : blob;
+        // Diagnostic: Check file signature
+        const signatureReader = new FileReader();
+        signatureReader.onload = (e) => {
+          const arr = new Uint8Array(e.target?.result as ArrayBuffer);
+          const hex = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join(' ').toUpperCase();
+          console.log(`Logo Signature (first 8 bytes): ${hex}`);
           
-        const img = new Image();
-        const objectUrl = URL.createObjectURL(imageBlob);
-        
-        const timeout = setTimeout(() => {
-          URL.revokeObjectURL(objectUrl);
-          console.warn('Logo loading timed out (5s)');
-          resolve(null);
-        }, 5000);
-
-        img.onload = () => {
-          clearTimeout(timeout);
-          URL.revokeObjectURL(objectUrl);
-          console.log(`Logo decoded successfully: ${img.width}x${img.height}`);
-          try {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(img, 0, 0);
-              resolve(canvas.toDataURL('image/png'));
-            } else {
-              resolve(null);
-            }
-          } catch (e) {
-            console.error('Canvas processing error:', e);
-            resolve(null);
+          if (hex.startsWith('89 50 4E 47')) {
+            console.log('Confirmed: Valid PNG signature found.');
+          } else if (hex.startsWith('FF D8 FF')) {
+            console.warn('Detected: This is actually a JPEG file.');
+          } else if (hex.startsWith('3C 21 44 4F') || hex.startsWith('3C 68 74 6D')) {
+            console.error('Detected: This is an HTML page, not an image! (Likely a GitHub error page)');
           }
         };
-        
-        img.onerror = (err) => {
-          clearTimeout(timeout);
-          URL.revokeObjectURL(objectUrl);
-          console.error('Browser failed to decode the logo image:', err);
-          resolve(null);
+        signatureReader.readAsArrayBuffer(blob.slice(0, 8));
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64data = reader.result as string;
+          const img = new Image();
+          
+          const timeout = setTimeout(() => {
+            console.warn('Logo decoding timed out (5s)');
+            resolve(null);
+          }, 5000);
+
+          img.onload = () => {
+            clearTimeout(timeout);
+            console.log(`Logo decoded successfully: ${img.width}x${img.height}`);
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0);
+                resolve(canvas.toDataURL('image/png'));
+              } else {
+                resolve(null);
+              }
+            } catch (e) {
+              console.error('Canvas processing error:', e);
+              resolve(null);
+            }
+          };
+          
+          img.onerror = (err) => {
+            clearTimeout(timeout);
+            console.error('Browser failed to decode the logo image from DataURL:', err);
+            resolve(null);
+          };
+          
+          img.src = base64data;
         };
-        
-        img.src = objectUrl;
+        reader.readAsDataURL(blob);
       });
     }
   } catch (e) {
