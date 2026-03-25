@@ -106,15 +106,14 @@ export async function generateLetterPDF(
     };
 
     let blob = null;
-    if (EXTERNAL_LOGO_URL) {
+    // Prefer local logo as the user just uploaded a "treated" version
+    blob = await fetchLogo(LOCAL_LOGO_URL);
+    if (!blob && EXTERNAL_LOGO_URL) {
       blob = await fetchLogo(EXTERNAL_LOGO_URL);
-    }
-    if (!blob) {
-      blob = await fetchLogo(LOCAL_LOGO_URL);
     }
 
     if (blob) {
-      logoData = await new Promise((resolve) => {
+      const logoInfo = await new Promise<{ data: string, width: number, height: number } | null>((resolve) => {
         // Diagnostic: Check file signature
         const signatureReader = new FileReader();
         signatureReader.onload = (e) => {
@@ -152,7 +151,11 @@ export async function generateLetterPDF(
               const ctx = canvas.getContext('2d');
               if (ctx) {
                 ctx.drawImage(img, 0, 0);
-                resolve(canvas.toDataURL('image/png'));
+                resolve({
+                  data: canvas.toDataURL('image/png'),
+                  width: img.width,
+                  height: img.height
+                });
               } else {
                 resolve(null);
               }
@@ -172,6 +175,13 @@ export async function generateLetterPDF(
         };
         reader.readAsDataURL(blob);
       });
+      
+      if (logoInfo) {
+        logoData = logoInfo.data;
+        // Store dimensions globally for drawHeader
+        (doc as any)._logoWidth = logoInfo.width;
+        (doc as any)._logoHeight = logoInfo.height;
+      }
     }
   } catch (e) {
     console.warn('Silent logo load failure:', e);
@@ -192,8 +202,23 @@ export async function generateLetterPDF(
   const drawHeader = (doc: jsPDF) => {
     if (logoData) {
       try {
-        // Centering the logo: (210 - 60) / 2 = 75
-        doc.addImage(logoData, 'PNG', 75, 10, 60, 30);
+        const originalWidth = (doc as any)._logoWidth || 60;
+        const originalHeight = (doc as any)._logoHeight || 30;
+        const ratio = originalWidth / originalHeight;
+        
+        const maxWidth = 60;
+        const maxHeight = 30;
+        
+        let targetWidth = maxWidth;
+        let targetHeight = targetWidth / ratio;
+        
+        if (targetHeight > maxHeight) {
+          targetHeight = maxHeight;
+          targetWidth = targetHeight * ratio;
+        }
+        
+        const x = (210 - targetWidth) / 2;
+        doc.addImage(logoData, 'PNG', x, 10, targetWidth, targetHeight);
         return; // Success
       } catch (e) {
         console.error('Error adding logo to PDF, using fallback:', e);
