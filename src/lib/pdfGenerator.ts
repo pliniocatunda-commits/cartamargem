@@ -264,7 +264,7 @@ export async function generateLetterPDF(
     doc.setDrawColor(0, 0, 120); doc.line(110, 15, 114, 18);
     
     doc.setFont('times', 'bold');
-    doc.setFontSize(26);
+    doc.setFontSize(28);
     doc.setTextColor(0, 40, 100); 
     doc.text('IPME', 105, 23, { align: 'center' });
 
@@ -368,8 +368,9 @@ export async function generateLetterPDF(
 
   doc.setFont('times', 'bold');
   doc.text('NOME:', 20, y);
-  doc.setFont('times', 'normal');
+  doc.setFontSize(13);
   doc.text(data.serverName.toUpperCase(), 60, y);
+  doc.setFontSize(11);
   y += 6; // Reverted from 5
 
   doc.setFont('times', 'bold');
@@ -490,11 +491,11 @@ export async function generateSummaryPDF(
   }
   
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(18);
+  doc.setFontSize(20);
   doc.setTextColor(30, 41, 59); // Slate 800
   doc.text('DEMONSTRATIVO DE MARGEM', 190, 25, { align: 'right' });
   
-  doc.setFontSize(10);
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 116, 139); // Slate 500
   doc.text('IPME - Instituto de Previdência do Município de Eusébio', 190, 32, { align: 'right' });
@@ -524,7 +525,9 @@ export async function generateSummaryPDF(
   
   // Row 1
   doc.setFont('helvetica', 'bold'); doc.text('NOME:', leftCol, y);
-  doc.setFont('helvetica', 'normal'); doc.text(data.serverName || 'NÃO INFORMADO', leftCol + 12, y);
+  doc.setFontSize(11);
+  doc.text(data.serverName || 'NÃO INFORMADO', leftCol + 12, y);
+  doc.setFontSize(8.5);
   y += 6;
   
   // Row 2

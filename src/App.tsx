@@ -201,7 +201,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="font-bold text-lg tracking-tight">MargemFacil</h1>
-              <p className="text-[10px] text-blue-600 uppercase tracking-widest font-bold leading-tight">
+              <p className="text-xs text-blue-600 uppercase tracking-widest font-bold leading-tight">
                 IPME - Instituto de Previdência do Município de Eusébio
               </p>
             </div>
@@ -644,7 +644,7 @@ export default function App() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-[#141414]/30">Servidor(a)</span>
-                    <span className="text-sm font-bold truncate max-w-[200px]">{paystubData.serverName || 'NÃO IDENTIFICADO'}</span>
+                    <span className="text-base font-bold truncate max-w-[250px]">{paystubData.serverName || 'NÃO IDENTIFICADO'}</span>
                   </div>
                 </div>
               </div>
