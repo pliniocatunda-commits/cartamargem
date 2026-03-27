@@ -24,9 +24,10 @@ export async function parsePaystubXML(file: File): Promise<Partial<PaystubData>>
     };
 
     const serverName = getTagValue(['nome', 'nomeServidor', 'funcionario', 'nomeFuncionario', 'beneficiario']);
-    const grossStr = getTagValue(['valorBruto', 'totalVantagens', 'totalProventos', 'rendimentoBruto', 'vencimentos']);
+    const grossStr = getTagValue(['totalVencimentos', 'valorBruto', 'totalVantagens', 'totalProventos', 'rendimentoBruto', 'vencimentos']);
     const irrfStr = getTagValue(['irrf', 'impostoRenda', 'valorIRRF', 'descontoIRRF']);
     const pensionStr = getTagValue(['previdencia', 'iprev', 'contribuicaoPrevidenciaria', 'valorPrevidencia', 'rpps']);
+    const referencePeriod = getTagValue(['mesAno', 'referencia', 'competencia', 'mesReferencia', 'anoReferencia', 'periodoReferencia', 'dataReferencia', 'competenciaFolha']);
 
     // Consigned loans are often in a list of discounts
     const consignedLoans: ConsignedLoan[] = [];
@@ -65,6 +66,7 @@ export async function parsePaystubXML(file: File): Promise<Partial<PaystubData>>
       grossValue: grossStr ? parseFloat(grossStr.replace(',', '.')) : undefined,
       irrf: irrfStr ? parseFloat(irrfStr.replace(',', '.')) : undefined,
       pension: pensionStr ? parseFloat(pensionStr.replace(',', '.')) : undefined,
+      referencePeriod: referencePeriod || undefined,
       consignedLoans: consignedLoans.length > 0 ? consignedLoans : undefined,
     };
   } catch (error) {

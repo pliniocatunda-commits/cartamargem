@@ -21,20 +21,56 @@ export async function parsePaystubExcel(file: File): Promise<Partial<PaystubData
     let grossValue: number | undefined;
     let irrf: number | undefined;
     let pension: number | undefined;
+    let referencePeriod: string | undefined;
     const consignedLoans: ConsignedLoan[] = [];
 
     // Helper to find a value in the cell next to a label
     const findValueNearLabel = (labels: string[]): number | undefined => {
-      for (let r = 0; r < data.length; r++) {
-        for (let c = 0; c < data[r].length; c++) {
-          const cellValue = String(data[r][c] || '').toUpperCase();
-          if (labels.some(label => cellValue.includes(label.toUpperCase()))) {
-            // Look in the next few cells in the same row
-            for (let offset = 1; offset <= 3; offset++) {
-              const nextVal = data[r][c + offset];
-              if (typeof nextVal === 'number') return nextVal;
-              if (typeof nextVal === 'string' && /[\d]/.test(nextVal)) {
-                return parseCurrency(nextVal);
+      for (const label of labels) {
+        const upperLabel = label.toUpperCase();
+        for (let r = 0; r < data.length; r++) {
+          for (let c = 0; c < data[r].length; c++) {
+            const cellValue = String(data[r][c] || '').toUpperCase();
+            if (cellValue.includes(upperLabel)) {
+              const isGrossSearch = upperLabel.includes('VANTAGEM') || upperLabel.includes('VENCIMENTO') || upperLabel.includes('BRUTO');
+              
+              // Look in the next few cells in the same row
+              for (let offset = 1; offset <= 5; offset++) {
+                const nextVal = data[r][c + offset];
+                if (nextVal === undefined) break;
+                
+                const nextValStr = String(nextVal).toUpperCase();
+                
+                // Se estivermos procurando Bruto e encontrarmos "DESCONTO" antes de um número, paramos
+                if (isGrossSearch && nextValStr.includes('DESCONTO')) break;
+
+                if (typeof nextVal === 'number') return nextVal;
+                if (typeof nextVal === 'string' && /[\d]/.test(nextVal)) {
+                  const val = parseCurrency(nextVal);
+                  if (val > 0) return val;
+                }
+              }
+            }
+          }
+        }
+      }
+      return undefined;
+    };
+
+    // Helper to find a string value near a label
+    const findStringNearLabel = (labels: string[]): string | undefined => {
+      for (const label of labels) {
+        const upperLabel = label.toUpperCase();
+        for (let r = 0; r < data.length; r++) {
+          for (let c = 0; c < data[r].length; c++) {
+            const cellValue = String(data[r][c] || '').toUpperCase();
+            if (cellValue.includes(upperLabel)) {
+              for (let offset = 1; offset <= 5; offset++) {
+                const nextVal = data[r][c + offset];
+                if (nextVal !== undefined && nextVal !== null) {
+                  const strVal = String(nextVal).trim();
+                  if (strVal.length > 0) return strVal;
+                }
               }
             }
           }
@@ -58,10 +94,11 @@ export async function parsePaystubExcel(file: File): Promise<Partial<PaystubData
       if (serverName) break;
     }
 
-    // 2. Financial Values
-    grossValue = findValueNearLabel(['TOTAL VANTAGENS', 'TOTAL PROVENTOS', 'BRUTO', 'VENCIMENTOS', 'RENDIMENTO BRUTO']);
+    // 2. Financial Values and Reference Period
+    grossValue = findValueNearLabel(['TOTAL DE VENCIMENTOS', 'TOTAL VANTAGENS', 'TOTAL PROVENTOS', 'BRUTO', 'RENDIMENTO BRUTO', 'VENCIMENTOS']);
     irrf = findValueNearLabel(['IRRF', 'IMPOSTO DE RENDA', 'I.R.R.F']);
     pension = findValueNearLabel(['PREVIDÊNCIA', 'IPREV', 'CONTRIBUIÇÃO PREV', 'CPSS', 'RPPS']);
+    referencePeriod = findStringNearLabel(['MÊS/ANO', 'REFERÊNCIA', 'REF.']);
 
     // 3. Consigned Loans
     const bankCodes: { [key: string]: string } = {
@@ -112,6 +149,7 @@ export async function parsePaystubExcel(file: File): Promise<Partial<PaystubData
       grossValue,
       irrf,
       pension,
+      referencePeriod,
       consignedLoans: consignedLoans.length > 0 ? consignedLoans : undefined,
     };
   } catch (error) {

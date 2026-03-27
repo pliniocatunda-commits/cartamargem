@@ -108,7 +108,15 @@ export async function parsePaystubWithAI(file: File): Promise<Partial<PaystubDat
               }
             },
             {
-              text: `Extraia os dados deste contracheque brasileiro (holerite). Procure pelo nome do servidor, matrícula, CPF (pode estar perto do cargo ou nas observações), data de admissão, vínculo (05 para pensionista, 06 para aposentado), valor bruto (total de vantagens), IRRF, Previdência e empréstimos consignados. 
+              text: `Extraia os dados deste contracheque brasileiro (holerite). Procure pelo nome do servidor, matrícula, CPF (pode estar perto do cargo ou nas observações), data de admissão, vínculo (05 para pensionista, 06 para aposentado), valor bruto (procure especificamente pelo campo 'TOTAL DE VENCIMENTOS' ou 'TOTAL DE VANTAGENS'). 
+              IMPORTANTE: Não confunda com o 'TOTAL DE DESCONTOS'. O valor bruto é a soma das vantagens/vencimentos.
+              Extraia também o mês e ano de referência (geralmente na segunda linha à direita, ex: 03/2024).
+              Extraia também IRRF, Previdência e empréstimos consignados. 
+              IMPORTANTE: Não confunda o valor do IRRF ou da Previdência com suas respectivas 'Bases de Cálculo', 'Rendimentos' ou descrições de isenção (ex: 'ISENTO DE IRRF'). O valor do IRRF/Previdência é um desconto (valor menor).
+              Se o IRRF ou a Previdência não estiverem presentes, se o valor for zero, ou se houver a palavra 'ISENTO', retorne 0. Não use o valor bruto nesses campos.
+              Use os seguintes códigos de rubrica para identificação precisa (PRIORIDADE MÁXIMA):
+              - Código K9: IRRF
+              - Código W1: PREVIDÊNCIA MUNICIPAL
               Para os empréstimos, identifique o banco pelo nome ou pelo código que aparece na coluna de código/rubrica:
               - Código 19: BB
               - Código 28: CEF
@@ -134,6 +142,7 @@ export async function parsePaystubWithAI(file: File): Promise<Partial<PaystubDat
             grossValue: { type: Type.NUMBER },
             irrf: { type: Type.NUMBER },
             pension: { type: Type.NUMBER },
+            referencePeriod: { type: Type.STRING },
             consignedLoans: {
               type: Type.ARRAY,
               items: {
@@ -162,6 +171,7 @@ export async function parsePaystubWithAI(file: File): Promise<Partial<PaystubDat
       grossValue: result.grossValue,
       irrf: result.irrf,
       pension: result.pension,
+      referencePeriod: result.referencePeriod,
       consignedLoans: result.consignedLoans?.map((loan: any) => ({
         id: Math.random().toString(36).substr(2, 9),
         bank: loan.bank,
@@ -249,6 +259,7 @@ export async function parsePaystubPDF(file: File): Promise<Partial<PaystubData>>
     let cpf: string | undefined;
     let admissionDate: string | undefined;
     let bondType: '05' | '06' | undefined;
+    let referencePeriod: string | undefined;
 
     // Look for registration (matricula), name, CPF, etc.
     for (let i = 0; i < rows.length; i++) {
@@ -256,6 +267,95 @@ export async function parsePaystubPDF(file: File): Promise<Partial<PaystubData>>
       const columns = row.split(';');
       const upperRow = row.toUpperCase();
       
+      // Specific logic for "RECIBO DE PAGAMENTO DE SALARIO"
+      if (!referencePeriod && upperRow.includes('RECIBO DE PAGAMENTO DE SALARIO')) {
+        // Look at the current row first, then the next row
+        const rowsToSearch = [row, rows[i + 1] || ''];
+        for (const r of rowsToSearch) {
+          const upperR = r.toUpperCase();
+          
+          // 1. Try numerical format (MM/YYYY)
+          const numMatch = r.match(/(\d{2}[\/\-\.]\d{4})/) || r.match(/(\d{2}[\/\-\.]\d{2})/);
+          if (numMatch) {
+            const mIndex = numMatch.index || 0;
+            const mFull = numMatch[0];
+            const cBefore = mIndex > 0 ? r[mIndex - 1] : '';
+            const cAfter = mIndex + mFull.length < r.length ? r[mIndex + mFull.length] : '';
+            const isFullDate = cBefore === '/' || cAfter === '/' || cBefore === '-' || cAfter === '-' || cBefore === '.' || cAfter === '.';
+            
+            if (!isFullDate) {
+              referencePeriod = mFull;
+              break;
+            }
+          }
+          
+          // 2. Try text format (MARÇO DE 2026 or MARÇO/2026)
+          const monthRegex = /(JANEIRO|FEVEREIRO|MARÇO|MARCO|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)(?:\s+DE\s+|\s*\/\s*)(\d{4})/;
+          const textMatch = upperR.match(monthRegex);
+          if (textMatch) {
+            const monthName = textMatch[1];
+            const year = textMatch[2];
+            const monthMap: { [key: string]: string } = {
+              'JANEIRO': '01', 'FEVEREIRO': '02', 'MARÇO': '03', 'MARCO': '03',
+              'ABRIL': '04', 'MAIO': '05', 'JUNHO': '06', 'JULHO': '07',
+              'AGOSTO': '08', 'SETEMBRO': '09', 'OUTUBRO': '10', 'NOVEMBRO': '11', 'DEZEMBRO': '12'
+            };
+            referencePeriod = `${monthMap[monthName]}/${year}`;
+            break;
+          }
+        }
+      }
+
+      // Match Reference Period: mm/yyyy (usually on the first few rows)
+      if (!referencePeriod && i < 20) {
+        // Look for labels first
+        const hasRefLabel = upperRow.includes('MÊS/ANO') || 
+                            upperRow.includes('REFERÊNCIA') || 
+                            upperRow.includes('REF.') || 
+                            upperRow.includes('COMPETÊNCIA') ||
+                            upperRow.includes('MÊS REF');
+                            
+        const refMatch = row.match(/(\d{2}[\/\-\.]\d{4})/) || row.match(/(\d{2}[\/\-\.]\d{2})/);
+        
+        if (refMatch) {
+          const matchIndex = refMatch.index || 0;
+          const fullMatch = refMatch[0];
+          
+          // Check if it's part of a DD/MM/YYYY date
+          const charBefore = matchIndex > 0 ? row[matchIndex - 1] : '';
+          const charAfter = matchIndex + fullMatch.length < row.length ? row[matchIndex + fullMatch.length] : '';
+          
+          const isPartOfFullDate = charBefore === '/' || charAfter === '/' || charBefore === '-' || charAfter === '-' || charBefore === '.' || charAfter === '.';
+          
+          // If we have a label, we are more confident
+          if (hasRefLabel) {
+            referencePeriod = fullMatch;
+          } else if (!isPartOfFullDate) {
+            // If no label, only pick if it's not part of a full date
+            // Also check if it's not just a year or something else
+            if (fullMatch.length >= 5) {
+              referencePeriod = fullMatch;
+            }
+          }
+        }
+
+        // Try text format if still not found (MARÇO DE 2026 or MARÇO/2026)
+        if (!referencePeriod) {
+          const monthRegex = /(JANEIRO|FEVEREIRO|MARÇO|MARCO|ABRIL|MAIO|JUNHO|JULHO|AGOSTO|SETEMBRO|OUTUBRO|NOVEMBRO|DEZEMBRO)(?:\s+DE\s+|\s*\/\s*)(\d{4})/;
+          const textMatch = upperRow.match(monthRegex);
+          if (textMatch) {
+            const monthName = textMatch[1];
+            const year = textMatch[2];
+            const monthMap: { [key: string]: string } = {
+              'JANEIRO': '01', 'FEVEREIRO': '02', 'MARÇO': '03', 'MARCO': '03',
+              'ABRIL': '04', 'MAIO': '05', 'JUNHO': '06', 'JULHO': '07',
+              'AGOSTO': '08', 'SETEMBRO': '09', 'OUTUBRO': '10', 'NOVEMBRO': '11', 'DEZEMBRO': '12'
+            };
+            referencePeriod = `${monthMap[monthName]}/${year}`;
+          }
+        }
+      }
+
       // Look for a registration pattern (usually a number with 4-10 digits)
       // and then a name in the same row or next row
       for (let j = 0; j < columns.length; j++) {
@@ -388,44 +488,98 @@ export async function parsePaystubPDF(file: File): Promise<Partial<PaystubData>>
     }
 
     // 2. Financial Values (IRRF and Pension in "Desconto" column)
-    const findValue = (labels: string[], codes?: string[]) => {
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const upperRow = row.toUpperCase();
-        const columns = row.split(';');
-        const firstCol = columns[0]?.trim().toUpperCase();
-
-        // Check by Code first (more precise)
-        const matchedByCode = codes && codes.some(c => firstCol === c.toUpperCase());
-        
-        // Check by Label
-        const matchedByLabel = labels.some(label => upperRow.includes(label.toUpperCase()));
-
-        if (matchedByCode || matchedByLabel) {
-          // 1. Check current row (from right to left)
-          for (let j = columns.length - 1; j >= 0; j--) {
-            const col = columns[j].trim();
-            const valueMatch = col.match(/([\d]{1,3}(?:\.[\d]{3})*,[\d]{2})/);
-            if (valueMatch) return parseCurrency(valueMatch[1]);
-          }
+    const findValue = (labels: string[], codes?: string[], exclude: string[] = []) => {
+      // 1. Tentar por Código primeiro (mais preciso)
+      if (codes) {
+        for (let i = 0; i < rows.length; i++) {
+          const columns = rows[i].split(';');
+          const firstCol = columns[0]?.trim().toUpperCase();
           
-          // 2. Check next row (sometimes values are below labels)
-          if (i + 1 < rows.length) {
-            const nextRowCols = rows[i + 1].split(';');
-            for (let j = nextRowCols.length - 1; j >= 0; j--) {
-              const col = nextRowCols[j].trim();
+          // Match exact code or code with leading zeros (e.g., "00K9" matches "K9")
+          const codeMatch = codes.some(c => {
+            const upperC = c.toUpperCase();
+            return firstCol === upperC || firstCol.endsWith(upperC);
+          });
+
+          if (codeMatch) {
+            for (let j = columns.length - 1; j >= 0; j--) {
+              const col = columns[j].trim();
               const valueMatch = col.match(/([\d]{1,3}(?:\.[\d]{3})*,[\d]{2})/);
               if (valueMatch) return parseCurrency(valueMatch[1]);
             }
           }
+        }
+      }
 
-          // 3. Check previous row
-          if (i > 0) {
-            const prevRowCols = rows[i - 1].split(';');
-            for (let j = prevRowCols.length - 1; j >= 0; j--) {
-              const col = prevRowCols[j].trim();
+      // 2. Tentar por Rótulo em ordem de prioridade
+      for (const label of labels) {
+        const upperLabel = label.toUpperCase();
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const upperRow = row.toUpperCase();
+          
+          if (upperRow.includes(upperLabel)) {
+            // Skip if row contains any excluded terms (e.g., "BASE", "CÁLCULO")
+            if (exclude.some(e => upperRow.includes(e.toUpperCase()))) continue;
+
+            const columns = row.split(';');
+            const isGrossSearch = upperLabel.includes('VANTAGEM') || upperLabel.includes('VENCIMENTO') || upperLabel.includes('BRUTO');
+            
+            // Se for busca de Bruto, pegamos o primeiro valor após o rótulo na mesma linha
+            if (isGrossSearch) {
+              const labelIndex = upperRow.indexOf(upperLabel);
+              const textAfterLabel = row.substring(labelIndex + upperLabel.length);
+              
+              // Se houver "DESCONTO" na mesma linha, limitamos a busca até ele
+              const discountPos = textAfterLabel.toUpperCase().indexOf('DESCONTO');
+              const relevantPart = discountPos !== -1 ? textAfterLabel.substring(0, discountPos) : textAfterLabel;
+              
+              const partCols = relevantPart.split(';');
+              for (const col of partCols) {
+                const valueMatch = col.trim().match(/([\d]{1,3}(?:\.[\d]{3})*,[\d]{2})/);
+                if (valueMatch) return parseCurrency(valueMatch[1]);
+              }
+            }
+
+            // Busca padrão na linha atual (da direita para a esquerda)
+            for (let j = columns.length - 1; j >= 0; j--) {
+              const col = columns[j].trim();
               const valueMatch = col.match(/([\d]{1,3}(?:\.[\d]{3})*,[\d]{2})/);
               if (valueMatch) return parseCurrency(valueMatch[1]);
+            }
+            
+            // 3. Verificar próxima linha (valores abaixo dos rótulos)
+            if (i + 1 < rows.length) {
+              const nextRowCols = rows[i + 1].split(';');
+              if (isGrossSearch) {
+                // Se houver "DESCONTO" na próxima linha, pegamos o valor da esquerda
+                const hasDiscountNext = rows[i + 1].toUpperCase().includes('DESCONTO');
+                for (let j = 0; j < nextRowCols.length; j++) {
+                  const col = nextRowCols[j].trim();
+                  const valueMatch = col.match(/([\d]{1,3}(?:\.[\d]{3})*,[\d]{2})/);
+                  if (valueMatch) {
+                    const val = parseCurrency(valueMatch[1]);
+                    if (val > 0) return val;
+                  }
+                  if (hasDiscountNext && j > 0) break;
+                }
+              } else {
+                for (let j = nextRowCols.length - 1; j >= 0; j--) {
+                  const col = nextRowCols[j].trim();
+                  const valueMatch = col.match(/([\d]{1,3}(?:\.[\d]{3})*,[\d]{2})/);
+                  if (valueMatch) return parseCurrency(valueMatch[1]);
+                }
+              }
+            }
+
+            // 4. Verificar linha anterior
+            if (i > 0) {
+              const prevRowCols = rows[i - 1].split(';');
+              for (let j = prevRowCols.length - 1; j >= 0; j--) {
+                const col = prevRowCols[j].trim();
+                const valueMatch = col.match(/([\d]{1,3}(?:\.[\d]{3})*,[\d]{2})/);
+                if (valueMatch) return parseCurrency(valueMatch[1]);
+              }
             }
           }
         }
@@ -433,9 +587,9 @@ export async function parsePaystubPDF(file: File): Promise<Partial<PaystubData>>
       return undefined;
     };
 
-    const grossValue = findValue(['Total de Vantagens', 'Total Proventos', 'Bruto', 'Vencimentos', 'Rendimento Bruto', 'TOTAL VANTAGENS', 'VALOR BRUTO']);
-    const irrf = findValue(['IRRF', 'Imposto de Renda', 'I\.R\.R\.F', 'IMP\. RENDA', 'IMPOSTO DE RENDA RETIDO'], ['K9']);
-    const pension = findValue(['Previdência', 'IPREV', 'CONTRIBUIÇÃO PREV', 'CPSS', 'PREV\. MUNICIPAL', 'RPPS', 'CONTRIB PREV', 'CONTRIBUIÇÃO PREVIDENCIÁRIA'], ['W1']);
+    const grossValue = findValue(['TOTAL DE VENCIMENTOS', 'TOTAL DE VANTAGENS', 'Total de Vantagens', 'Total Proventos', 'Bruto', 'Rendimento Bruto', 'TOTAL VANTAGENS', 'VALOR BRUTO', 'Vencimentos']);
+    const irrf = findValue(['IRRF', 'I.R.R.F', 'IMP. RENDA'], ['K9'], ['BASE', 'CÁLCULO', 'CALCULO', 'RENDIMENTO', 'VENCIMENTO', 'VANTAGEM', 'TOTAL', 'ISENTO', 'BENEFICIO', 'BENEFÍCIO']);
+    const pension = findValue(['Previdência', 'IPREV', 'CONTRIBUIÇÃO PREV', 'CPSS', 'PREV. MUNICIPAL', 'RPPS', 'CONTRIB PREV', 'CONTRIBUIÇÃO PREVIDENCIÁRIA'], ['W1'], ['BASE', 'CÁLCULO', 'CALCULO', 'RENDIMENTO', 'VENCIMENTO', 'VANTAGEM', 'TOTAL', 'ISENTO']);
 
     // 3. Consigned Loans (Bank in "Descrição" column or via Code in first column)
     const consignedLoans: ConsignedLoan[] = [];
@@ -507,6 +661,7 @@ export async function parsePaystubPDF(file: File): Promise<Partial<PaystubData>>
       cpf,
       admissionDate,
       bondType,
+      referencePeriod,
       grossValue,
       irrf,
       pension,

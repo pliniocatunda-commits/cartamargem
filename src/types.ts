@@ -15,6 +15,7 @@ export interface PaystubData {
   grossValue: number;
   irrf: number;
   pension: number;
+  referencePeriod?: string;
   consignedLoans: ConsignedLoan[];
 }
 

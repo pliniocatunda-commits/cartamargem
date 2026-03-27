@@ -15,7 +15,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { Bank, PaystubData, ConsignedLoan, CalculationResult, Signatory } from './types';
 import { calculateMargin } from './lib/calculations';
-import { generateLetterPDF } from './lib/pdfGenerator';
+import { generateLetterPDF, generateSummaryPDF } from './lib/pdfGenerator';
 import { cn, formatCurrency, parseCurrencyInput, formatCurrencyInput } from './lib/utils';
 
 const BANKS: { id: Bank; name: string; color: string; code?: string }[] = [
@@ -38,6 +38,7 @@ export default function App() {
     cpf: '',
     admissionDate: '',
     bondType: '06',
+    referencePeriod: '',
     grossValue: 0,
     irrf: 0,
     pension: 0,
@@ -112,6 +113,7 @@ export default function App() {
         cpf: extracted.cpf || '',
         admissionDate: extracted.admissionDate || '',
         bondType: extracted.bondType || '06',
+        referencePeriod: extracted.referencePeriod || '',
         grossValue: extracted.grossValue || 0,
         irrf: extracted.irrf || 0,
         pension: extracted.pension || 0,
@@ -137,6 +139,7 @@ export default function App() {
         setPaystubData({
           serverName: 'SERVIDOR NÃO IDENTIFICADO',
           registration: '',
+          referencePeriod: '',
           grossValue: 0,
           irrf: 0,
           pension: 0,
@@ -459,6 +462,16 @@ export default function App() {
                           />
                         </div>
                       </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-[#141414]/40">Mês/Ano Referência</label>
+                        <input
+                          type="text"
+                          value={paystubData.referencePeriod || ''}
+                          onChange={(e) => setPaystubData({ ...paystubData, referencePeriod: e.target.value })}
+                          placeholder="MM/AAAA"
+                          className="w-full px-4 py-3 rounded-xl border border-[#141414]/10 focus:border-[#141414] focus:ring-0 transition-all outline-none font-semibold"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -687,7 +700,11 @@ export default function App() {
 
               <div className="bg-white p-8 rounded-3xl border border-[#141414]/5">
                 <h3 className="font-bold text-xl mb-6">Detalhamento Técnico</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8">
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold uppercase tracking-widest text-[#141414]/40">Mês/Ano Ref.</p>
+                    <p className="text-xl font-bold">{paystubData.referencePeriod || '---'}</p>
+                  </div>
                   <div className="space-y-1">
                     <p className="text-xs font-bold uppercase tracking-widest text-[#141414]/40">Base de Cálculo (35%)</p>
                     <p className="text-xl font-bold">{formatCurrency(calculation.baseMargin)}</p>
@@ -711,7 +728,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex justify-between items-center pt-4">
+              <div className="flex flex-wrap gap-4 justify-between items-center pt-4">
                 <button
                   onClick={prevStep}
                   className="flex items-center gap-2 px-6 py-3 rounded-full border border-[#141414]/10 font-bold hover:bg-white transition-colors"
@@ -719,13 +736,22 @@ export default function App() {
                   <ChevronLeft size={20} />
                   Voltar
                 </button>
-                <button
-                  onClick={nextStep}
-                  className="flex items-center gap-2 px-8 py-4 rounded-full bg-[#141414] text-white font-bold hover:scale-105 transition-transform shadow-xl"
-                >
-                  Gerar Carta Margem
-                  <Download size={20} />
-                </button>
+                <div className="flex flex-wrap gap-4">
+                  <button
+                    onClick={() => generateSummaryPDF(selectedBank!, paystubData, calculation)}
+                    className="flex items-center gap-2 px-6 py-3 rounded-full border border-[#141414]/10 font-bold hover:bg-white transition-colors"
+                  >
+                    <FileText size={20} />
+                    Relatório de Dados
+                  </button>
+                  <button
+                    onClick={nextStep}
+                    className="flex items-center gap-2 px-8 py-4 rounded-full bg-[#141414] text-white font-bold hover:scale-105 transition-transform shadow-xl"
+                  >
+                    Gerar Carta Margem
+                    <Download size={20} />
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}
@@ -823,6 +849,16 @@ export default function App() {
                     className="flex items-center justify-center gap-3 py-5 rounded-2xl border-2 border-[#141414] text-[#141414] font-bold hover:bg-[#141414] hover:text-white transition-all"
                   >
                     Novo Cálculo
+                  </button>
+                </div>
+
+                <div className="pt-4">
+                  <button
+                    onClick={() => generateSummaryPDF(selectedBank!, paystubData, calculation)}
+                    className="flex items-center justify-center gap-2 mx-auto text-sm font-bold text-[#141414]/60 hover:text-[#141414] transition-colors"
+                  >
+                    <FileText size={16} />
+                    Baixar Relatório de Dados (Demonstrativo)
                   </button>
                 </div>
               </div>
