@@ -76,33 +76,44 @@ function numberToWords(n: number): string {
  * This is the most reliable way to embed images in jsPDF.
  */
 async function getBase64Image(url: string): Promise<{ data: string, width: number, height: number } | null> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'Anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
+  try {
+    console.log(`[Logo] Attempting to load: ${url}`);
+    const response = await fetch(url, { cache: 'no-cache' });
+    if (!response.ok) {
+      console.warn(`[Logo] HTTP error! status: ${response.status} for ${url}`);
+      return null;
+    }
+    const blob = await response.blob();
+    
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        const img = new Image();
+        img.onload = () => {
+          console.log(`[Logo] Successfully loaded and decoded: ${url} (${img.width}x${img.height})`);
+          resolve({
+            data: base64data,
+            width: img.width,
+            height: img.height
+          });
+        };
+        img.onerror = () => {
+          console.error(`[Logo] Failed to decode image data from ${url}`);
+          resolve(null);
+        };
+        img.src = base64data;
+      };
+      reader.onerror = () => {
+        console.error(`[Logo] FileReader error for ${url}`);
         resolve(null);
-        return;
-      }
-      ctx.drawImage(img, 0, 0);
-      try {
-        const data = canvas.toDataURL('image/png');
-        resolve({ data, width: img.width, height: img.height });
-      } catch (e) {
-        console.error('[Logo] Failed to get data URL:', e);
-        resolve(null);
-      }
-    };
-    img.onerror = (e) => {
-      console.error(`[Logo] Failed to load image from ${url}:`, e);
-      resolve(null);
-    };
-    img.src = url;
-  });
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.error(`[Logo] Error fetching image from ${url}:`, e);
+    return null;
+  }
 }
 
 export async function generateLetterPDF(
@@ -115,8 +126,9 @@ export async function generateLetterPDF(
   const doc = new jsPDF();
   
   // CONFIGURAÇÃO DO LOGOTIPO: 
-  const EXTERNAL_LOGO_URL = 'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png';
-  const LOCAL_LOGO_URL = `${window.location.origin}/logo-ipme.png`;
+  const timestamp = new Date().getTime();
+  const EXTERNAL_LOGO_URL = `https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png?t=${timestamp}`;
+  const LOCAL_LOGO_URL = `${window.location.origin}/logo-ipme.png?t=${timestamp}`;
   
   let logoInfo: { data: string, width: number, height: number } | null = null;
   
@@ -130,7 +142,7 @@ export async function generateLetterPDF(
       logoInfo = await getBase64Image(EXTERNAL_LOGO_URL);
     }
   } catch (e) {
-    console.warn('[Logo] Silent failure during logo load:', e);
+    console.warn('[Logo] Error in logo loading sequence:', e);
   }
 
   const date = new Date();
@@ -160,14 +172,15 @@ export async function generateLetterPDF(
         }
         
         const x = (210 - targetWidth) / 2;
-        doc.addImage(logoInfo.data, 'PNG', x, 5, targetWidth, targetHeight, undefined, 'FAST');
+        // Use 'PNG' or 'JPEG' based on data URL if possible, but 'PNG' is generally safe for canvas output
+        doc.addImage(logoInfo.data, 'PNG', x, 5, targetWidth, targetHeight);
         return;
       } catch (e) {
         console.error('[Logo] Error adding logo to PDF:', e);
       }
     }
     
-    // Fallback simulation
+    // Fallback simulation (if image fails)
     doc.setDrawColor(0);
     doc.setFillColor(0, 180, 0); // Green
     doc.circle(92, 13, 1.5, 'F');
@@ -374,8 +387,9 @@ export async function generateSummaryPDF(
   const doc = new jsPDF();
   
   // CONFIGURAÇÃO DO LOGOTIPO
-  const EXTERNAL_LOGO_URL = 'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png';
-  const LOCAL_LOGO_URL = `${window.location.origin}/logo-ipme.png`;
+  const timestamp = new Date().getTime();
+  const EXTERNAL_LOGO_URL = `https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png?t=${timestamp}`;
+  const LOCAL_LOGO_URL = `${window.location.origin}/logo-ipme.png?t=${timestamp}`;
   
   let logoInfo: { data: string, width: number, height: number } | null = null;
   
@@ -386,7 +400,7 @@ export async function generateSummaryPDF(
       logoInfo = await getBase64Image(EXTERNAL_LOGO_URL);
     }
   } catch (e) {
-    console.warn('[Logo] Silent failure during summary logo load:', e);
+    console.warn('[Logo] Error in summary logo loading sequence:', e);
   }
 
   // --- HEADER DESIGN ---
