@@ -73,13 +73,12 @@ function numberToWords(n: number): string {
 
 /**
  * Fetches an image and converts it to a Base64 string.
- * This is the most reliable way to embed images in jsPDF.
+ * Includes "repair" logic for corrupted PNG signatures (PNG)
+ * and resizes large images to prevent PDF bloat.
  */
 async function getBase64Image(url: string): Promise<{ data: string, width: number, height: number } | null> {
   try {
     console.log(`[Logo] Attempting to load: ${url}`);
-    
-    // Use fetch to get the blob first, as it's more reliable for error checking
     const response = await fetch(url, { cache: 'no-cache' });
     
     if (!response.ok) {
@@ -87,42 +86,83 @@ async function getBase64Image(url: string): Promise<{ data: string, width: numbe
       return null;
     }
     
-    const contentType = response.headers.get('content-type');
-    const blob = await response.blob();
+    const contentType = response.headers.get('content-type') || '';
+    let blob = await response.blob();
     
-    console.log(`[Logo] Received response from ${url}: type=${contentType}, size=${blob.size} bytes`);
-
-    if (!contentType || !contentType.startsWith('image/')) {
-      // If it's not an image, it might be a 404 page or error message
-      const text = await blob.text();
-      console.error(`[Logo] Received non-image response from ${url}. Content-Type: ${contentType}. First 100 chars: ${text.substring(0, 100)}`);
-      return null;
+    // Check for corruption (common when binary files are treated as text)
+    const buffer = await blob.arrayBuffer();
+    const view = new Uint8Array(buffer);
+    
+    let finalBlob = blob;
+    
+    // PNG signature: 89 50 4E 47
+    // Corrupted signature (UTF-8 replacement char): EF BF BD 50 4E 47
+    if (view[0] === 0xEF && view[1] === 0xBF && view[2] === 0xBD && 
+        view[3] === 0x50 && view[4] === 0x4E && view[5] === 0x47) {
+      console.warn(`[Logo] Detected corrupted PNG signature (PNG) from ${url}. Attempting repair...`);
+      const repairedView = new Uint8Array(buffer.length - 2);
+      repairedView[0] = 0x89;
+      repairedView.set(view.subarray(3), 1);
+      finalBlob = new Blob([repairedView], { type: 'image/png' });
+    } 
+    // Sometimes it's just a '?' (0x3F) instead of 0x89
+    else if (view[0] === 0x3F && view[1] === 0x50 && view[2] === 0x4E && view[3] === 0x47) {
+      console.warn(`[Logo] Detected corrupted PNG signature (?PNG) from ${url}. Attempting repair...`);
+      const repairedView = new Uint8Array(buffer.length);
+      repairedView.set(view);
+      repairedView[0] = 0x89;
+      finalBlob = new Blob([repairedView], { type: 'image/png' });
     }
-    
+    // If it's application/octet-stream but looks like a PNG, treat it as one
+    else if (contentType.includes('octet-stream') && view[0] === 0x89 && view[1] === 0x50) {
+      finalBlob = new Blob([buffer], { type: 'image/png' });
+    }
+
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64data = reader.result as string;
         const img = new Image();
         img.onload = () => {
-          console.log(`[Logo] Successfully decoded image: ${url} (${img.width}x${img.height})`);
-          resolve({
-            data: base64data,
-            width: img.width,
-            height: img.height
-          });
+          console.log(`[Logo] Successfully loaded image: ${url} (${img.width}x${img.height})`);
+          
+          // RESIZE LOGIC: If image is huge (like the 2.5MB one), resize it for the PDF
+          const canvas = document.createElement('canvas');
+          const maxDim = 1000; // Max 1000px for the logo in PDF
+          let w = img.width;
+          let h = img.height;
+          
+          if (w > maxDim || h > maxDim) {
+            const ratio = w / h;
+            if (w > h) {
+              w = maxDim;
+              h = w / ratio;
+            } else {
+              h = maxDim;
+              w = h * ratio;
+            }
+            console.log(`[Logo] Resizing large logo from ${img.width}x${img.height} to ${Math.round(w)}x${Math.round(h)}`);
+          }
+          
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+            const data = canvas.toDataURL('image/png', 0.8); // 0.8 quality
+            resolve({ data, width: w, height: h });
+          } else {
+            resolve({ data: base64data, width: img.width, height: img.height });
+          }
         };
         img.onerror = () => {
-          console.error(`[Logo] Failed to decode image data from ${url}. Data starts with: ${base64data.substring(0, 50)}...`);
+          console.error(`[Logo] Failed to decode image data from ${url}.`);
           resolve(null);
         };
         img.src = base64data;
       };
-      reader.onerror = () => {
-        console.error(`[Logo] FileReader error for ${url}`);
-        resolve(null);
-      };
-      reader.readAsDataURL(blob);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(finalBlob);
     });
   } catch (e) {
     console.error(`[Logo] Exception during image load from ${url}:`, e);
