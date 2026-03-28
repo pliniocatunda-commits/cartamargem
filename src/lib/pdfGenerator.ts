@@ -76,44 +76,66 @@ function numberToWords(n: number): string {
  * This is the most reliable way to embed images in jsPDF.
  */
 async function getBase64Image(url: string): Promise<{ data: string, width: number, height: number } | null> {
-  try {
+  return new Promise((resolve) => {
     console.log(`[Logo] Attempting to load: ${url}`);
-    const response = await fetch(url, { cache: 'no-cache' });
-    if (!response.ok) {
-      console.warn(`[Logo] HTTP error! status: ${response.status} for ${url}`);
-      return null;
-    }
-    const blob = await response.blob();
+    const img = new Image();
     
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64data = reader.result as string;
-        const img = new Image();
-        img.onload = () => {
-          console.log(`[Logo] Successfully loaded and decoded: ${url} (${img.width}x${img.height})`);
-          resolve({
-            data: base64data,
-            width: img.width,
-            height: img.height
-          });
-        };
-        img.onerror = () => {
-          console.error(`[Logo] Failed to decode image data from ${url}`);
+    // Only use Anonymous for external URLs to avoid issues with local ones
+    if (url.startsWith('http')) {
+      img.crossOrigin = 'Anonymous';
+    }
+    
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
           resolve(null);
-        };
-        img.src = base64data;
-      };
-      reader.onerror = () => {
-        console.error(`[Logo] FileReader error for ${url}`);
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        const data = canvas.toDataURL('image/png');
+        console.log(`[Logo] Successfully loaded and converted: ${url} (${img.width}x${img.height})`);
+        resolve({ data, width: img.width, height: img.height });
+      } catch (e) {
+        console.error(`[Logo] Failed to convert image to Base64: ${url}`, e);
         resolve(null);
-      };
-      reader.readAsDataURL(blob);
-    });
-  } catch (e) {
-    console.error(`[Logo] Error fetching image from ${url}:`, e);
-    return null;
-  }
+      }
+    };
+    
+    img.onerror = () => {
+      console.warn(`[Logo] Failed to load image directly: ${url}. Trying fetch fallback...`);
+      
+      // Fallback to fetch if direct load fails
+      fetch(url, { cache: 'no-cache' })
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.blob();
+        })
+        .then(blob => {
+          if (!blob.type.startsWith('image/')) throw new Error(`Not an image: ${blob.type}`);
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64data = reader.result as string;
+            const tempImg = new Image();
+            tempImg.onload = () => {
+              resolve({ data: base64data, width: tempImg.width, height: tempImg.height });
+            };
+            tempImg.onerror = () => resolve(null);
+            tempImg.src = base64data;
+          };
+          reader.readAsDataURL(blob);
+        })
+        .catch(err => {
+          console.error(`[Logo] Fetch fallback failed for ${url}:`, err);
+          resolve(null);
+        });
+    };
+    
+    img.src = url;
+  });
 }
 
 export async function generateLetterPDF(
@@ -127,22 +149,21 @@ export async function generateLetterPDF(
   
   // CONFIGURAÇÃO DO LOGOTIPO: 
   const timestamp = new Date().getTime();
-  const EXTERNAL_LOGO_URL = `https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png?t=${timestamp}`;
-  const LOCAL_LOGO_URL = `${window.location.origin}/logo-ipme.png?t=${timestamp}`;
+  const LOGO_ATTEMPTS = [
+    '/logo-ipme.png', // Simple local path
+    `/logo-ipme.png?t=${timestamp}`, // Local with cache bust
+    'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png' // External without cache bust (GitHub 400 fix)
+  ];
   
   let logoInfo: { data: string, width: number, height: number } | null = null;
   
-  try {
-    // 1. Try local logo first
-    logoInfo = await getBase64Image(LOCAL_LOGO_URL);
-    
-    // 2. Fallback to external logo
-    if (!logoInfo) {
-      console.log('[Logo] Local logo failed, trying external URL...');
-      logoInfo = await getBase64Image(EXTERNAL_LOGO_URL);
-    }
-  } catch (e) {
-    console.warn('[Logo] Error in logo loading sequence:', e);
+  for (const url of LOGO_ATTEMPTS) {
+    logoInfo = await getBase64Image(url);
+    if (logoInfo) break;
+  }
+
+  if (!logoInfo) {
+    console.warn('[Logo] All logo loading attempts failed.');
   }
 
   const date = new Date();
@@ -172,7 +193,6 @@ export async function generateLetterPDF(
         }
         
         const x = (210 - targetWidth) / 2;
-        // Use 'PNG' or 'JPEG' based on data URL if possible, but 'PNG' is generally safe for canvas output
         doc.addImage(logoInfo.data, 'PNG', x, 5, targetWidth, targetHeight);
         return;
       } catch (e) {
@@ -388,19 +408,21 @@ export async function generateSummaryPDF(
   
   // CONFIGURAÇÃO DO LOGOTIPO
   const timestamp = new Date().getTime();
-  const EXTERNAL_LOGO_URL = `https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png?t=${timestamp}`;
-  const LOCAL_LOGO_URL = `${window.location.origin}/logo-ipme.png?t=${timestamp}`;
+  const LOGO_ATTEMPTS = [
+    '/logo-ipme.png',
+    `/logo-ipme.png?t=${timestamp}`,
+    'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png'
+  ];
   
   let logoInfo: { data: string, width: number, height: number } | null = null;
   
-  try {
-    logoInfo = await getBase64Image(LOCAL_LOGO_URL);
-    if (!logoInfo) {
-      console.log('[Logo] Local logo failed for summary, trying external URL...');
-      logoInfo = await getBase64Image(EXTERNAL_LOGO_URL);
-    }
-  } catch (e) {
-    console.warn('[Logo] Error in summary logo loading sequence:', e);
+  for (const url of LOGO_ATTEMPTS) {
+    logoInfo = await getBase64Image(url);
+    if (logoInfo) break;
+  }
+
+  if (!logoInfo) {
+    console.warn('[Logo] All summary logo loading attempts failed.');
   }
 
   // --- HEADER DESIGN ---
