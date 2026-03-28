@@ -76,66 +76,58 @@ function numberToWords(n: number): string {
  * This is the most reliable way to embed images in jsPDF.
  */
 async function getBase64Image(url: string): Promise<{ data: string, width: number, height: number } | null> {
-  return new Promise((resolve) => {
+  try {
     console.log(`[Logo] Attempting to load: ${url}`);
-    const img = new Image();
     
-    // Only use Anonymous for external URLs to avoid issues with local ones
-    if (url.startsWith('http')) {
-      img.crossOrigin = 'Anonymous';
+    // Use fetch to get the blob first, as it's more reliable for error checking
+    const response = await fetch(url, { cache: 'no-cache' });
+    
+    if (!response.ok) {
+      console.warn(`[Logo] HTTP error! status: ${response.status} for ${url}`);
+      return null;
     }
     
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
+    const contentType = response.headers.get('content-type');
+    const blob = await response.blob();
+    
+    console.log(`[Logo] Received response from ${url}: type=${contentType}, size=${blob.size} bytes`);
+
+    if (!contentType || !contentType.startsWith('image/')) {
+      // If it's not an image, it might be a 404 page or error message
+      const text = await blob.text();
+      console.error(`[Logo] Received non-image response from ${url}. Content-Type: ${contentType}. First 100 chars: ${text.substring(0, 100)}`);
+      return null;
+    }
+    
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        const img = new Image();
+        img.onload = () => {
+          console.log(`[Logo] Successfully decoded image: ${url} (${img.width}x${img.height})`);
+          resolve({
+            data: base64data,
+            width: img.width,
+            height: img.height
+          });
+        };
+        img.onerror = () => {
+          console.error(`[Logo] Failed to decode image data from ${url}. Data starts with: ${base64data.substring(0, 50)}...`);
           resolve(null);
-          return;
-        }
-        ctx.drawImage(img, 0, 0);
-        const data = canvas.toDataURL('image/png');
-        console.log(`[Logo] Successfully loaded and converted: ${url} (${img.width}x${img.height})`);
-        resolve({ data, width: img.width, height: img.height });
-      } catch (e) {
-        console.error(`[Logo] Failed to convert image to Base64: ${url}`, e);
+        };
+        img.src = base64data;
+      };
+      reader.onerror = () => {
+        console.error(`[Logo] FileReader error for ${url}`);
         resolve(null);
-      }
-    };
-    
-    img.onerror = () => {
-      console.warn(`[Logo] Failed to load image directly: ${url}. Trying fetch fallback...`);
-      
-      // Fallback to fetch if direct load fails
-      fetch(url, { cache: 'no-cache' })
-        .then(response => {
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          return response.blob();
-        })
-        .then(blob => {
-          if (!blob.type.startsWith('image/')) throw new Error(`Not an image: ${blob.type}`);
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64data = reader.result as string;
-            const tempImg = new Image();
-            tempImg.onload = () => {
-              resolve({ data: base64data, width: tempImg.width, height: tempImg.height });
-            };
-            tempImg.onerror = () => resolve(null);
-            tempImg.src = base64data;
-          };
-          reader.readAsDataURL(blob);
-        })
-        .catch(err => {
-          console.error(`[Logo] Fetch fallback failed for ${url}:`, err);
-          resolve(null);
-        });
-    };
-    
-    img.src = url;
-  });
+      };
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.error(`[Logo] Exception during image load from ${url}:`, e);
+    return null;
+  }
 }
 
 export async function generateLetterPDF(
@@ -150,9 +142,12 @@ export async function generateLetterPDF(
   // CONFIGURAÇÃO DO LOGOTIPO: 
   const timestamp = new Date().getTime();
   const LOGO_ATTEMPTS = [
-    '/logo-ipme.png', // Simple local path
-    `/logo-ipme.png?t=${timestamp}`, // Local with cache bust
-    'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png' // External without cache bust (GitHub 400 fix)
+    // 1. Local path (most reliable in production)
+    `/logo-ipme.png?t=${timestamp}`,
+    // 2. Absolute local path
+    `${window.location.origin}/logo-ipme.png?t=${timestamp}`,
+    // 3. External GitHub Raw (NO cache-busting as it causes 400 errors)
+    'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png'
   ];
   
   let logoInfo: { data: string, width: number, height: number } | null = null;
@@ -163,7 +158,7 @@ export async function generateLetterPDF(
   }
 
   if (!logoInfo) {
-    console.warn('[Logo] All logo loading attempts failed.');
+    console.warn('[Logo] All logo loading attempts failed. PDF will be generated without logo.');
   }
 
   const date = new Date();
@@ -409,8 +404,11 @@ export async function generateSummaryPDF(
   // CONFIGURAÇÃO DO LOGOTIPO
   const timestamp = new Date().getTime();
   const LOGO_ATTEMPTS = [
-    '/logo-ipme.png',
+    // 1. Local path
     `/logo-ipme.png?t=${timestamp}`,
+    // 2. Absolute local path
+    `${window.location.origin}/logo-ipme.png?t=${timestamp}`,
+    // 3. External GitHub Raw
     'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png'
   ];
   
