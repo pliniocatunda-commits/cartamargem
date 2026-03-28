@@ -115,7 +115,16 @@ async function getBase64Image(url: string): Promise<{ data: string, width: numbe
     }
     // If it's application/octet-stream but looks like a PNG, treat it as one
     else if (contentType.includes('octet-stream') && view[0] === 0x89 && view[1] === 0x50) {
+      console.log(`[Logo] Treating octet-stream as PNG based on signature from ${url}`);
       finalBlob = new Blob([buffer], { type: 'image/png' });
+    }
+    // Handle the case where it's octet-stream but has the corrupted signature
+    else if (contentType.includes('octet-stream') && view[0] === 0xEF && view[1] === 0xBF) {
+      console.warn(`[Logo] Detected corrupted PNG signature in octet-stream from ${url}. Attempting repair...`);
+      const repairedView = new Uint8Array(buffer.length - 2);
+      repairedView[0] = 0x89;
+      repairedView.set(view.subarray(3), 1);
+      finalBlob = new Blob([repairedView], { type: 'image/png' });
     }
 
     return new Promise((resolve) => {
@@ -182,12 +191,12 @@ export async function generateLetterPDF(
   // CONFIGURAÇÃO DO LOGOTIPO: 
   const timestamp = new Date().getTime();
   const LOGO_ATTEMPTS = [
-    // 1. Local path (most reliable in production)
+    // 1. External GitHub Raw (Most reliable source confirmed by user)
+    'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png',
+    // 2. Local path (fallback)
     `/logo-ipme.png?t=${timestamp}`,
-    // 2. Absolute local path
-    `${window.location.origin}/logo-ipme.png?t=${timestamp}`,
-    // 3. External GitHub Raw (NO cache-busting as it causes 400 errors)
-    'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png'
+    // 3. Absolute local path (fallback)
+    `${window.location.origin}/logo-ipme.png?t=${timestamp}`
   ];
   
   let logoInfo: { data: string, width: number, height: number } | null = null;
@@ -444,12 +453,12 @@ export async function generateSummaryPDF(
   // CONFIGURAÇÃO DO LOGOTIPO
   const timestamp = new Date().getTime();
   const LOGO_ATTEMPTS = [
-    // 1. Local path
+    // 1. External GitHub Raw (Most reliable source confirmed by user)
+    'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png',
+    // 2. Local path (fallback)
     `/logo-ipme.png?t=${timestamp}`,
-    // 2. Absolute local path
-    `${window.location.origin}/logo-ipme.png?t=${timestamp}`,
-    // 3. External GitHub Raw
-    'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png'
+    // 3. Absolute local path (fallback)
+    `${window.location.origin}/logo-ipme.png?t=${timestamp}`
   ];
   
   let logoInfo: { data: string, width: number, height: number } | null = null;
