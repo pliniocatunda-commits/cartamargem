@@ -71,99 +71,38 @@ function numberToWords(n: number): string {
   return result;
 }
 
-async function fetchLogo(url: string): Promise<Blob | null> {
-  try {
-    console.log(`[Logo] Fetching: ${url}`);
-    const response = await fetch(url, { cache: 'no-store' });
-    if (!response.ok) {
-      console.error(`[Logo] Failed to fetch ${url}: ${response.status} ${response.statusText}`);
-      return null;
-    }
-    const blob = await response.blob();
-    console.log(`[Logo] Fetched: ${blob.size} bytes, type: ${blob.type}`);
-    return blob;
-  } catch (err) {
-    console.error(`[Logo] Error fetching ${url}:`, err);
-    return null;
-  }
-}
-
-async function decodeLogo(blob: Blob): Promise<{ data: string, width: number, height: number } | null> {
-  const attemptDecode = async (targetBlob: Blob, label: string): Promise<{ data: string, width: number, height: number } | null> => {
-    try {
-      // Try modern createImageBitmap first (more robust for some formats)
-      if (typeof createImageBitmap === 'function') {
-        try {
-          const bitmap = await createImageBitmap(targetBlob);
-          console.log(`[Logo] ${label} decoded via createImageBitmap: ${bitmap.width}x${bitmap.height}`);
-          
-          const canvas = document.createElement('canvas');
-          canvas.width = bitmap.width;
-          canvas.height = bitmap.height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(bitmap, 0, 0);
-            const data = canvas.toDataURL('image/png');
-            const result = { data, width: bitmap.width, height: bitmap.height };
-            bitmap.close();
-            return result;
-          }
-        } catch (e) {
-          console.warn(`[Logo] ${label} createImageBitmap failed, falling back to Image object`);
-        }
+/**
+ * Fetches an image and converts it to a Base64 string.
+ * This is the most reliable way to embed images in jsPDF.
+ */
+async function getBase64Image(url: string): Promise<{ data: string, width: number, height: number } | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(null);
+        return;
       }
-
-      // Fallback to traditional Image object
-      return new Promise((resolve) => {
-        const objectUrl = URL.createObjectURL(targetBlob);
-        const img = new Image();
-        img.onload = () => {
-          URL.revokeObjectURL(objectUrl);
-          console.log(`[Logo] ${label} decoded via Image: ${img.width}x${img.height}`);
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0);
-            resolve({ data: canvas.toDataURL('image/png'), width: img.width, height: img.height });
-          } else resolve(null);
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          resolve(null);
-        };
-        img.src = objectUrl;
-      });
-    } catch (err) {
-      console.error(`[Logo] ${label} decode error:`, err);
-      return null;
-    }
-  };
-
-  // 1. Direct attempt
-  let result = await attemptDecode(blob, 'Direct');
-  if (result) return result;
-
-  // 2. Smart Slice attempt
-  console.log('[Logo] Direct decode failed, attempting Smart Slice...');
-  const buffer = await blob.arrayBuffer();
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < view.length - 4; i++) {
-    // JPEG Start: FF D8
-    if (view[i] === 0xFF && view[i+1] === 0xD8) {
-      const sliced = new Blob([buffer.slice(i)], { type: 'image/jpeg' });
-      const res = await attemptDecode(sliced, 'Sliced-JPEG');
-      if (res) return res;
-    }
-    // PNG Start: 89 50 4E 47
-    if (view[i] === 0x89 && view[i+1] === 0x50 && view[i+2] === 0x4E && view[i+3] === 0x47) {
-      const sliced = new Blob([buffer.slice(i)], { type: 'image/png' });
-      const res = await attemptDecode(sliced, 'Sliced-PNG');
-      if (res) return res;
-    }
-  }
-  return null;
+      ctx.drawImage(img, 0, 0);
+      try {
+        const data = canvas.toDataURL('image/png');
+        resolve({ data, width: img.width, height: img.height });
+      } catch (e) {
+        console.error('[Logo] Failed to get data URL:', e);
+        resolve(null);
+      }
+    };
+    img.onerror = (e) => {
+      console.error(`[Logo] Failed to load image from ${url}:`, e);
+      resolve(null);
+    };
+    img.src = url;
+  });
 }
 
 export async function generateLetterPDF(
@@ -174,34 +113,24 @@ export async function generateLetterPDF(
 ) {
   console.log('Generating PDF for:', data.serverName);
   const doc = new jsPDF();
-  console.log('jsPDF instance created');
   
   // CONFIGURAÇÃO DO LOGOTIPO: 
   const EXTERNAL_LOGO_URL = 'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png';
-  const LOCAL_LOGO_URL = '/logo-ipme.png';
+  const LOCAL_LOGO_URL = `${window.location.origin}/logo-ipme.png`;
   
-  let logoData: string | null = null;
+  let logoInfo: { data: string, width: number, height: number } | null = null;
   
   try {
-    // 1. Try local logo
-    let logoBlob = await fetchLogo(`${window.location.origin}/logo-ipme.png`);
-    let decoded = logoBlob ? await decodeLogo(logoBlob) : null;
-
-    // 2. Fallback to external logo if local fails (fetch or decode)
-    if (!decoded) {
-      console.log('[Logo] Local logo failed (fetch or decode), trying external URL...');
-      logoBlob = await fetchLogo(EXTERNAL_LOGO_URL);
-      decoded = logoBlob ? await decodeLogo(logoBlob) : null;
-    }
-
-    if (decoded) {
-      logoData = decoded.data;
-      (doc as any)._logoWidth = decoded.width;
-      (doc as any)._logoHeight = decoded.height;
+    // 1. Try local logo first
+    logoInfo = await getBase64Image(LOCAL_LOGO_URL);
+    
+    // 2. Fallback to external logo
+    if (!logoInfo) {
+      console.log('[Logo] Local logo failed, trying external URL...');
+      logoInfo = await getBase64Image(EXTERNAL_LOGO_URL);
     }
   } catch (e) {
-    console.warn('Silent logo load failure:', e);
-    logoData = null;
+    console.warn('[Logo] Silent failure during logo load:', e);
   }
 
   const date = new Date();
@@ -216,14 +145,11 @@ export async function generateLetterPDF(
   const availableMargin = Math.max(0, margin35 - totalLoans);
 
   const drawHeader = (doc: jsPDF) => {
-    if (logoData) {
+    if (logoInfo) {
       try {
-        const originalWidth = (doc as any)._logoWidth || 60;
-        const originalHeight = (doc as any)._logoHeight || 30;
-        const ratio = originalWidth / originalHeight;
-        
-        const maxWidth = 80; // Increased from 60
-        const maxHeight = 40; // Increased from 30
+        const ratio = logoInfo.width / logoInfo.height;
+        const maxWidth = 80;
+        const maxHeight = 40;
         
         let targetWidth = maxWidth;
         let targetHeight = targetWidth / ratio;
@@ -234,16 +160,14 @@ export async function generateLetterPDF(
         }
         
         const x = (210 - targetWidth) / 2;
-        doc.addImage(logoData, 'PNG', x, 5, targetWidth, targetHeight, undefined, 'FAST');
-        return; // Success
+        doc.addImage(logoInfo.data, 'PNG', x, 5, targetWidth, targetHeight, undefined, 'FAST');
+        return;
       } catch (e) {
-        console.error('Error adding logo to PDF, using fallback:', e);
-        // If it fails, we'll fall through to the fallback below
+        console.error('[Logo] Error adding logo to PDF:', e);
       }
     }
     
-    // Fallback to improved simulation if image is not found or corrupt
-    // Colorful figures (circles/heads)
+    // Fallback simulation
     doc.setDrawColor(0);
     doc.setFillColor(0, 180, 0); // Green
     doc.circle(92, 13, 1.5, 'F');
@@ -451,32 +375,18 @@ export async function generateSummaryPDF(
   
   // CONFIGURAÇÃO DO LOGOTIPO
   const EXTERNAL_LOGO_URL = 'https://raw.githubusercontent.com/pliniocatunda-commits/cartamargem/main/public/logo-ipme.png';
+  const LOCAL_LOGO_URL = `${window.location.origin}/logo-ipme.png`;
   
-  let logoData: string | null = null;
-  let logoWidth = 30;
-  let logoHeight = 30;
+  let logoInfo: { data: string, width: number, height: number } | null = null;
   
   try {
-    let logoBlob = await fetchLogo(`${window.location.origin}/logo-ipme.png`);
-    let decoded = logoBlob ? await decodeLogo(logoBlob) : null;
-
-    if (!decoded) {
-      logoBlob = await fetchLogo(EXTERNAL_LOGO_URL);
-      decoded = logoBlob ? await decodeLogo(logoBlob) : null;
-    }
-
-    if (decoded) {
-      logoData = decoded.data;
-      // Maintain aspect ratio if possible
-      const ratio = decoded.width / decoded.height;
-      if (ratio > 1) {
-        logoHeight = logoWidth / ratio;
-      } else {
-        logoWidth = logoHeight * ratio;
-      }
+    logoInfo = await getBase64Image(LOCAL_LOGO_URL);
+    if (!logoInfo) {
+      console.log('[Logo] Local logo failed for summary, trying external URL...');
+      logoInfo = await getBase64Image(EXTERNAL_LOGO_URL);
     }
   } catch (e) {
-    console.error('Error loading logo for summary:', e);
+    console.warn('[Logo] Silent failure during summary logo load:', e);
   }
 
   // --- HEADER DESIGN ---
@@ -486,8 +396,22 @@ export async function generateSummaryPDF(
   doc.setDrawColor(200, 200, 200);
   doc.line(0, 50, 210, 50);
 
-  if (logoData) {
-    doc.addImage(logoData, 'PNG', 20, 10, logoWidth, logoHeight);
+  if (logoInfo) {
+    try {
+      const ratio = logoInfo.width / logoInfo.height;
+      let logoWidth = 30;
+      let logoHeight = 30;
+      
+      if (ratio > 1) {
+        logoHeight = logoWidth / ratio;
+      } else {
+        logoWidth = logoHeight * ratio;
+      }
+      
+      doc.addImage(logoInfo.data, 'PNG', 20, 10, logoWidth, logoHeight);
+    } catch (e) {
+      console.error('[Logo] Error adding logo to summary PDF:', e);
+    }
   }
   
   doc.setFont('helvetica', 'bold');
